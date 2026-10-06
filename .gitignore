@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+runs/
+datasets/
+exports/
+dist/
+*.zip
+!app/assets/models/.gitkeep
+
+# Flutter (généré par GitHub Actions)
+app/ios/
+app/build/
+app/.dart_tool/
+app/.flutter-plugins*
+app/pubspec.lock
+app/test/

@@ -1,0 +1,86 @@
+# Construit l'app iPhone sur un Mac de GitHub Actions (pas besoin de Mac chez toi).
+# 1. Exporte le modèle en CoreML FP32 / FP16 / INT8 et compare les 3 versions
+# 2. Met la version INT8 dans l'app
+# 3. Compile l'app Flutter sans signature -> fichier .ipa à installer avec Sideloadly
+name: Build iOS (ASL)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Version du modèle à mettre dans l'app"
+        type: choice
+        options: [int8, fp16, fp32]
+        default: int8
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------- 1. Export + quantization + comparaison ----------
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les outils d'export
+        run: pip install "ultralytics>=8.3" coremltools roboflow
+
+      - name: Export CoreML (FP32 / FP16 / INT8) + benchmark
+        env:
+          ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
+          DEPLOY_VARIANT: ${{ github.event.inputs.variant || 'int8' }}
+          EXPORT_NMS: "true"
+        run: python scripts/export_coreml.py
+
+      - name: Sauvegarder les modèles et le comparatif
+        uses: actions/upload-artifact@v4
+        with:
+          name: quantization-results
+          path: |
+            exports/benchmark.md
+            exports/benchmark.csv
+            exports/*.mlpackage.zip
+
+      # ---------- 2. Projet iOS Flutter ----------
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Générer le projet iOS
+        working-directory: app
+        run: |
+          flutter create --platforms=ios --org com.ervin --project-name asl_signes .
+          rm -rf test
+          # Autorisation caméra (obligatoire sur iOS)
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'La caméra sert à reconnaître les lettres de la langue des signes.'" ios/Runner/Info.plist
+          # Le plugin YOLO demande iOS 16 minimum
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 16.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          flutter pub get
+          flutter build ios --config-only --release --no-codesign || true
+          if [ -f ios/Podfile ]; then
+            sed -i '' "s/^#* *platform :ios.*/platform :ios, '16.0'/" ios/Podfile
+            (cd ios && pod install)
+          fi
+
+      # ---------- 3. Compilation + .ipa ----------
+      - name: Compiler (sans signature)
+        working-directory: app
+        run: flutter build ios --release --no-codesign
+
+      - name: Créer le fichier .ipa
+        run: |
+          mkdir -p dist/Payload
+          cp -R app/build/ios/iphoneos/Runner.app dist/Payload/
+          cd dist && zip -qry ASL-Signes.ipa Payload
+
+      - name: Télécharger l'app (.ipa)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ASL-Signes-ipa
+          path: dist/ASL-Signes.ipa

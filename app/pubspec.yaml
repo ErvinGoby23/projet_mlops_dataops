@@ -1,0 +1,17 @@
+name: asl_signes
+description: Reconnaissance de l'alphabet ASL en temps réel sur iPhone (YOLOv8n quantifié, CoreML).
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ultralytics_yolo: ^0.6.15
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/
