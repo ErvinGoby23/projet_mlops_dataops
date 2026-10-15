@@ -1,6 +1,6 @@
 # Construit l'app iPhone sur un Mac de GitHub Actions (pas besoin de Mac chez toi).
-# 1. Exporte le modèle en CoreML FP32 / FP16 / INT8 et compare les 3 versions
-# 2. Met la version INT8 dans l'app
+# 1. Exporte 5 versions CoreML (FP32 640, INT8 640, FP16 416, INT8 416, INT8 320)
+# 2. Les met TOUTES dans l'app (choix + mesure des FPS en stream sur l'iPhone)
 # 3. Compile l'app Flutter sans signature -> fichier .ipa à installer avec Sideloadly
 name: Build iOS (ASL)
 
@@ -8,12 +8,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      variant:
-        description: "Version du modèle à mettre dans l'app"
-        type: choice
-        options: [int8, fp16, fp32]
-        default: int8
 
 jobs:
   build:
@@ -30,10 +24,9 @@ jobs:
       - name: Installer les outils d'export
         run: pip install "ultralytics>=8.3" coremltools roboflow
 
-      - name: Export CoreML (FP32 / FP16 / INT8) + benchmark
+      - name: Export CoreML (5 versions) + évaluation
         env:
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
-          DEPLOY_VARIANT: ${{ github.event.inputs.variant || 'int8' }}
           EXPORT_NMS: "true"
         run: python scripts/export_coreml.py
 

@@ -14,3 +14,12 @@ app/.dart_tool/
 app/.flutter-plugins*
 app/pubspec.lock
 app/test/
+# Étapes 1 à 5 (générés en local)
+mlflow.db
+mlruns/
+mlartifacts/
+*.onnx
+*.pt
+!model/best.pt
+weights/
+*.cache

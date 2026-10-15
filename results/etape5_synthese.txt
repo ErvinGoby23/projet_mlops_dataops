@@ -1,0 +1,25 @@
+
+================================================================================================
+RÉSULTATS ÉTAPE 5 — Synthèse de toutes les versions
+================================================================================================
+Version                     Taille   mAP50  mAP50 216   ms b1   ms b8   Perte  Règle
+------------------------------------------------------------------------------------------------
+onnx_int8_static_320          3.73   0.934      0.926     8.4     6.6  -0.006  ✅  ← CHOISI
+onnx_fp32_320                12.50   0.939      0.925    10.0     8.9       —  
+onnx_int8_static_416          3.73   0.939      0.936    12.9    11.8  +0.004  ✅
+onnx_fp32_416                12.50   0.935      0.939    15.3    17.7       —  
+onnx_int8_static_A_640        4.02   0.000      0.000    25.4    25.0  -0.932  ❌
+onnx_int8_static_640          3.98   0.928      0.936    27.5    30.2  +0.003  ✅
+onnx_int8_static_C_640        3.98   0.921      0.939    27.9    31.2  +0.007  ✅
+onnx_fp32_640                12.74   0.924      0.932    36.2    56.2       —  
+pytorch_fp32_640              6.26   0.924          —    45.3    68.1       —  
+onnx_int8_dyn_640             3.82   0.921          —    61.0    77.8       —  
+------------------------------------------------------------------------------------------------
+Règle : modèle INT8 le plus rapide (batch 1) avec perte ≤ 0.02 de mAP50 216 vs onnx_fp32_640
+Choix : onnx_int8_static_320
+Lettre la plus dégradée pour ce choix : V (-0.134)
+Empreinte du dataset : 0a39b5bb66c32ad3  ({'train': 1512, 'valid': 144, 'test': 72})
+⚠️  Les vitesses viennent de runs différents (±10 % de variabilité) : comparer de préférence les versions d'une même étape.
+Graphiques : results\graphiques\
+================================================================================================
+Interface MLflow : mlflow ui --backend-store-uri sqlite:///mlflow.db

@@ -1,10 +1,12 @@
 """
-Export CoreML FP32 / FP16 / INT8 + comparaison (lancé par GitHub Actions sur un Mac).
+Export CoreML de plusieurs versions + évaluation (lancé par GitHub Actions sur un Mac).
 
-- Exporte model/best.pt en 3 versions CoreML
-- Mesure taille + précision (mAP sur le jeu de test) + vitesse d'inférence (Mac)
-- Écrit exports/benchmark.md et exports/benchmark.csv
-- Copie la version choisie (DEPLOY_VARIANT, défaut int8) dans l'app Flutter
+Versions embarquées dans l'app (l'utilisateur choisit dans l'app, et mesure les FPS en stream) :
+  fp32_640 | int8_640 | fp16_416 | int8_416 | int8_320
+
+Note : en CoreML, "int8" = quantization des POIDS sur 8 bits (le calcul se fait ensuite
+en FP16 sur le Neural Engine). Il n'y a pas de quantization des activations, donc pas
+le problème de la tête de détection vu avec ONNX à l'étape 3.
 """
 import csv
 import os
@@ -15,15 +17,16 @@ from ultralytics import YOLO
 
 PT = Path("model/best.pt")
 OUT = Path("exports")
-APP_MODEL = Path("app/assets/models/asl.mlpackage.zip")
-DEPLOY = os.environ.get("DEPLOY_VARIANT", "int8")
+APP_MODELS = Path("app/assets/models")
 NMS = os.environ.get("EXPORT_NMS", "true").lower() == "true"
-IMGSZ = 640
 
+# nom -> (résolution, options d'export)
 VARIANTS = {
-    "fp32": {},
-    "fp16": {"half": True},
-    "int8": {"int8": True},   # quantization post-training des poids en 8 bits
+    "fp32_640": (640, {}),
+    "int8_640": (640, {"int8": True}),
+    "fp16_416": (416, {"half": True}),
+    "int8_416": (416, {"int8": True}),
+    "int8_320": (320, {"int8": True}),
 }
 
 
@@ -34,7 +37,6 @@ def size_mb(path: Path) -> float:
 
 
 def zip_mlpackage(src: Path, inner_name: str, dest_zip: Path):
-    """Zip dont la racine contient <inner_name>.mlpackage (format attendu par le plugin)."""
     tmp = OUT / "_zip"
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
@@ -46,7 +48,6 @@ def zip_mlpackage(src: Path, inner_name: str, dest_zip: Path):
 
 
 def get_dataset():
-    """Télécharge le jeu de test (même dataset que l'entraînement) si la clé est fournie."""
     data = Path("datasets/asl/data.yaml")
     if data.exists():
         return str(data.resolve())
@@ -61,11 +62,11 @@ def get_dataset():
     return str(data.resolve())
 
 
-def evaluate(model_path: str, data: str | None):
+def evaluate(model_path: str, data, imgsz: int):
     if not data:
         return None, None, None
     try:
-        m = YOLO(model_path, task="detect").val(data=data, split="test", imgsz=IMGSZ,
+        m = YOLO(model_path, task="detect").val(data=data, split="test", imgsz=imgsz,
                                                  batch=1, plots=False, verbose=False)
         return m.box.map50, m.box.map, m.speed["inference"]
     except Exception as e:
@@ -75,52 +76,42 @@ def evaluate(model_path: str, data: str | None):
 
 def main():
     if not PT.exists():
-        raise SystemExit("❌ model/best.pt introuvable : copie ton modèle entraîné dans model/")
+        raise SystemExit("❌ model/best.pt introuvable")
     OUT.mkdir(exist_ok=True)
+    for old in APP_MODELS.glob("*.zip"):
+        old.unlink()
     data = get_dataset()
     rows = []
 
-    # Référence PyTorch (non quantifié)
-    map50, map5095, ms = evaluate(str(PT), data)
-    rows.append({"version": "PyTorch FP32 (référence)", "taille_mo": round(size_mb(PT), 2),
-                 "mAP50": map50, "mAP50-95": map5095, "inference_ms_mac": ms})
-
-    for name, kwargs in VARIANTS.items():
-        print(f"\n=== Export CoreML {name.upper()} ===")
-        exported = Path(YOLO(str(PT)).export(format="coreml", imgsz=IMGSZ, nms=NMS, **kwargs))
+    for name, (imgsz, kwargs) in VARIANTS.items():
+        print(f"\n=== Export CoreML {name} ===")
+        exported = Path(YOLO(str(PT)).export(format="coreml", imgsz=imgsz, nms=NMS, **kwargs))
         dest = OUT / f"asl_{name}.mlpackage"
         shutil.rmtree(dest, ignore_errors=True)
         shutil.move(str(exported), dest)
-        zip_mlpackage(dest, f"asl_{name}", OUT / f"asl_{name}.mlpackage.zip")
+        zip_mlpackage(dest, f"asl_{name}", APP_MODELS / f"asl_{name}.mlpackage.zip")
 
-        map50, map5095, ms = evaluate(str(dest), data)
-        rows.append({"version": f"CoreML {name.upper()}", "taille_mo": round(size_mb(dest), 2),
-                     "mAP50": map50, "mAP50-95": map5095, "inference_ms_mac": ms})
+        map50, map5095, ms = evaluate(str(dest), data, imgsz)
+        rows.append({"version": f"CoreML {name}", "resolution": imgsz,
+                     "taille_mo": round(size_mb(dest), 2), "mAP50": map50,
+                     "mAP50-95": map5095, "inference_ms_mac": ms})
 
-        if name == DEPLOY:
-            zip_mlpackage(dest, "asl", APP_MODEL)
-            print(f"✅ {name.upper()} copié dans l'app : {APP_MODEL}")
-
-    # ---- Rapport ----
     fmt = lambda v, d=3: "—" if v is None else f"{v:.{d}f}"
     with open(OUT / "benchmark.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=rows[0].keys())
         w.writeheader()
         w.writerows(rows)
 
-    md = ["## Comparaison quantization (ASL, YOLOv8n)", "",
-          f"Modèle déployé dans l'app : **CoreML {DEPLOY.upper()}**", "",
-          "| Version | Taille (Mo) | mAP50 | mAP50-95 | Inférence Mac (ms) |",
-          "|---|---|---|---|---|"]
+    md = ["## CoreML — versions embarquées dans l'app", "",
+          "| Version | Résolution | Taille (Mo) | mAP50 | mAP50-95 | Inférence Mac (ms) |",
+          "|---|---|---|---|---|---|"]
     for r in rows:
-        md.append(f"| {r['version']} | {r['taille_mo']:.2f} | {fmt(r['mAP50'])} | "
+        md.append(f"| {r['version']} | {r['resolution']} | {r['taille_mo']:.2f} | {fmt(r['mAP50'])} | "
                   f"{fmt(r['mAP50-95'])} | {fmt(r['inference_ms_mac'], 1)} |")
-    md += ["", "_Vitesse mesurée sur le Mac de GitHub Actions ; la vitesse sur iPhone "
-               "s'affiche en FPS dans l'app._"]
+    md += ["", "_Les FPS en stream se mesurent dans l'app sur l'iPhone (bouton « Mesurer 10 s »)._"]
     report = "\n".join(md)
     (OUT / "benchmark.md").write_text(report)
     print("\n" + report)
-
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as f:
