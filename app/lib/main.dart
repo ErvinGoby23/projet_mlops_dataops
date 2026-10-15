@@ -74,7 +74,11 @@ class _DetectionPageState extends State<DetectionPage> {
   int _measureFrames = 0;
   int _measureLeft = 0;
   Timer? _measureTimer;
-  final Map<String, double> _measures = {};
+  final Map<String, String> _measures = {};
+  final List<double> _measureMs = [];   // temps d'inférence natif (Neural Engine) pendant la mesure
+  double _lastMs = 0;
+  double _nativeFps = 0;
+  String? _modelError;
 
   @override
   void initState() {
@@ -100,14 +104,12 @@ class _DetectionPageState extends State<DetectionPage> {
     setState(() {
       _switching = true;
       _selected = index;
+      _modelError = null;
     });
     try {
       await _controller.switchModel(variants[index].path, YOLOTask.detect);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur de chargement : $e')));
-      }
+      if (mounted) setState(() => _modelError = '$e');
     }
     if (mounted) setState(() => _switching = false);
   }
@@ -117,6 +119,7 @@ class _DetectionPageState extends State<DetectionPage> {
     setState(() {
       _measuring = true;
       _measureFrames = 0;
+      _measureMs.clear();
       _measureLeft = _measureSeconds;
     });
     _measureTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -124,14 +127,37 @@ class _DetectionPageState extends State<DetectionPage> {
       setState(() => _measureLeft--);
       if (_measureLeft <= 0) {
         t.cancel();
+        final fps = _measureFrames / _measureSeconds;
+        String ms = 'n/a';
+        if (_measureMs.isNotEmpty) {
+          final sorted = [..._measureMs]..sort();
+          final mean = _measureMs.reduce((a, b) => a + b) / _measureMs.length;
+          final median = sorted[sorted.length ~/ 2];
+          ms = 'moy ${mean.toStringAsFixed(1)} ms | méd ${median.toStringAsFixed(1)} ms';
+        }
         setState(() {
-          _measures[variants[_selected].label] = _measureFrames / _measureSeconds;
+          _measures[variants[_selected].label] =
+              '${fps.toStringAsFixed(1)} FPS | inférence $ms';
           _measuring = false;
         });
         HapticFeedback.heavyImpact();
       }
     });
   }
+
+  void _onMetrics(YOLOPerformanceMetrics m) {
+    if (_measuring && m.processingTimeMs > 0) _measureMs.add(m.processingTimeMs);
+    if (!mounted) return;
+    setState(() {
+      _lastMs = m.processingTimeMs;
+      _nativeFps = m.fps;
+    });
+  }
+
+  String _resultsText() => [
+        'Mesures iPhone (${_measureSeconds}s par modèle, stream caméra)',
+        for (final e in _measures.entries) '${e.key} : ${e.value}',
+      ].join('\n');
 
   void _onResult(List<dynamic> results) {
     _frames++;
@@ -193,7 +219,12 @@ class _DetectionPageState extends State<DetectionPage> {
             modelPath: variants[0].path,
             task: YOLOTask.detect,
             controller: _controller,
+            streamingConfig: YOLOStreamingConfig.highPerformance(),
             onResult: _onResult,
+            onPerformanceMetrics: _onMetrics,
+            onModelError: (error, path, task) {
+              if (mounted) setState(() => _modelError = '$error');
+            },
           ),
 
           // ---- Haut : choix du modèle + lettre + FPS ----
@@ -241,8 +272,18 @@ class _DetectionPageState extends State<DetectionPage> {
                             ? 'Chargement ${variants[_selected].label}…'
                             : 'Modèle : ${variants[_selected].label}'),
                         Text('Confiance : ${(_confidence * 100).toStringAsFixed(0)} %'),
-                        Text('${_fps.toStringAsFixed(0)} FPS (stream)',
+                        Text('${_fps.toStringAsFixed(0)} FPS app · ${_nativeFps.toStringAsFixed(0)} FPS natif',
                             style: const TextStyle(color: Colors.white70)),
+                        Text('Inférence : ${_lastMs.toStringAsFixed(1)} ms',
+                            style: const TextStyle(color: Colors.white70)),
+                        if (_modelError != null)
+                          SizedBox(
+                            width: 230,
+                            child: Text('❌ $_modelError',
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                          ),
                       ]),
                     ],
                   ),
@@ -272,8 +313,18 @@ class _DetectionPageState extends State<DetectionPage> {
                         if (_measures.isNotEmpty) ...[
                           const SizedBox(height: 8),
                           for (final e in _measures.entries)
-                            Text('${e.key} : ${e.value.toStringAsFixed(1)} FPS moyens',
-                                style: const TextStyle(fontFamily: 'Menlo', fontSize: 13)),
+                            Text('${e.key} : ${e.value}',
+                                style: const TextStyle(fontFamily: 'Menlo', fontSize: 12)),
+                          const SizedBox(height: 6),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: _resultsText()));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Résultats copiés')));
+                            },
+                            icon: const Icon(Icons.copy, size: 16),
+                            label: const Text('Copier les résultats'),
+                          ),
                         ],
                       ],
                     ),
