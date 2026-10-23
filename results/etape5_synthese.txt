@@ -20,6 +20,6 @@ Choix : onnx_int8_static_320
 Lettre la plus dégradée pour ce choix : V (-0.134)
 Empreinte du dataset : 0a39b5bb66c32ad3  ({'train': 1512, 'valid': 144, 'test': 72})
 ⚠️  Les vitesses viennent de runs différents (±10 % de variabilité) : comparer de préférence les versions d'une même étape.
-Graphiques : results\graphiques\
+Graphiques : C:\Users\ervin\Documents\efrei\master2\devops_dataops\asl-ios\asl-ios\results\graphiques
 ================================================================================================
 Interface MLflow : mlflow ui --backend-store-uri sqlite:///mlflow.db

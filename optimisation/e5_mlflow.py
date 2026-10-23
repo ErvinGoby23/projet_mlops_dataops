@@ -1,39 +1,37 @@
 """
-ÉTAPE 5 — MLflow : tracer toutes les versions + graphiques + règle de décision
+Expérience 5 — MLflow : tracer toutes les versions + graphiques + règle de décision
 
-Rappel du cours : "ML system source code = training code + data".
-On versionne donc ensemble : le DATASET (empreinte), les MODÈLES et les MÉTRIQUES.
-
-  1. Lit les résultats des étapes 1 à 4 (results/etape*.json)
-  2. Crée un run MLflow par version (paramètres, métriques, fichier du modèle)
-  3. Applique la règle de décision fixée à l'avance
+Cours : "ML system source code = training code + data" -> on versionne ensemble
+le DATASET (empreinte), les MODÈLES et les MÉTRIQUES.
+  1. Lit les résultats des expériences 1 à 4 (+ 6)
+  2. Un run MLflow par version (paramètres, métriques, fichier du modèle)
+  3. Applique la règle de décision fixée à l'avance (config.yaml > decision)
   4. Enregistre le modèle choisi dans le Model Registry (alias "production")
-  5. Génère les graphiques pour le rapport / les slides (results/graphiques/)
+  5. Génère les graphiques du rapport
 
-Lancement :
-    pip install mlflow matplotlib
-    python .\\etape5_mlflow.py
-Puis pour voir l'interface :
-    mlflow ui --backend-store-uri sqlite:///mlflow.db
-    -> ouvrir http://127.0.0.1:5000
+Interface : mlflow ui --backend-store-uri sqlite:///mlflow.db  -> http://127.0.0.1:5000
 """
 import hashlib
 import json
+import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import matplotlib
+import matplotlib  # noqa: E402
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-RESULTS = Path("results")
+from optimisation.common import CFG, P, ROOT  # noqa: E402
+
+RESULTS = P["results"]
 CHARTS = RESULTS / "graphiques"
-EXPORTS = Path("exports")
-DATA_DIR = Path(r"datasets\asl")
-MAX_DROP = 0.02          # règle : perte max de 2 points de mAP50 vs la référence 640 FP32
-REFERENCE = "onnx_fp32_640"
-TRACKING_URI = "sqlite:///mlflow.db"
-EXPERIMENT = "asl-embarque-quantization"
-REGISTERED_NAME = "asl-detector"
+EXPORTS = P["exports"]
+DATA_DIR = P["data"].parent
+MAX_DROP = CFG["decision"]["max_drop_map50"]
+REFERENCE = CFG["decision"]["reference"]
+TRACKING_URI = CFG["mlflow"]["tracking_uri"]
+EXPERIMENT = CFG["mlflow"]["experiment"]
+REGISTERED_NAME = CFG["mlflow"]["registered_model"]
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +57,7 @@ def collect():
         v["pytorch_fp32_640"] = dict(etape=1, format="PyTorch", precision="FP32*", methode="aucune",
                                      imgsz=640, taille=p["taille_mo"], map50_test=p["mAP50"],
                                      map5095_test=p["mAP50-95"], ms1=ms(p["ms_par_image"], 1),
-                                     ms8=ms(p["ms_par_image"], 8), fichier=Path(r"model\best.pt"))
+                                     ms8=ms(p["ms_par_image"], 8), fichier=P["model_pt"])
     if e2:
         d = e2["onnx_int8_dynamique"]
         v["onnx_int8_dyn_640"] = dict(etape=2, format="ONNX", precision="INT8", methode="PTQ dynamique",
@@ -136,7 +134,10 @@ def log_mlflow(v, choice, fp, counts):
     except ImportError:
         print("⚠️  mlflow non installé : pip install mlflow")
         return
-    mlflow.set_tracking_uri(TRACKING_URI)
+    uri = TRACKING_URI
+    if uri.startswith("sqlite:///") and not Path(uri[10:]).is_absolute():
+        uri = "sqlite:///" + str((ROOT / uri[10:]).as_posix())
+    mlflow.set_tracking_uri(uri)
     mlflow.set_experiment(EXPERIMENT)
     for name, r in v.items():
         with mlflow.start_run(run_name=name) as run:
@@ -174,6 +175,20 @@ def log_mlflow(v, choice, fp, counts):
             elif f.exists():
                 mlflow.log_artifact(str(f), artifact_path="model")
         print(f"  run MLflow : {name}")
+
+    # Run de synthèse : graphiques + analyse de sensibilité (expérience 6) + config utilisée
+    with mlflow.start_run(run_name="synthese"):
+        mlflow.set_tags({"dataset_empreinte": fp, "choisi": choice or "aucun"})
+        e6 = RESULTS / "etape6.json"
+        if e6.exists():
+            d = json.loads(e6.read_text(encoding="utf-8"))
+            worst = min(d["blocs"].items(), key=lambda kv: kv[1]["perte_mAP50"])
+            mlflow.log_metrics({"bloc_le_plus_sensible": float(worst[0]),
+                                "perte_bloc_le_plus_sensible": float(worst[1]["perte_mAP50"])})
+            mlflow.log_artifact(str(e6))
+        if CHARTS.exists():
+            mlflow.log_artifacts(str(CHARTS), artifact_path="graphiques")
+        mlflow.log_artifact(str(ROOT / "config.yaml"))
 
 
 def charts(v, choice, key):
@@ -258,7 +273,7 @@ def main():
     lines += [f"Empreinte du dataset : {fp}  ({counts})",
               "⚠️  Les vitesses viennent de runs différents (±10 % de variabilité) : "
               "comparer de préférence les versions d'une même étape.",
-              f"Graphiques : {CHARTS}\\", "=" * 96,
+              f"Graphiques : {CHARTS}", "=" * 96,
               "Interface MLflow : mlflow ui --backend-store-uri sqlite:///mlflow.db"]
     print("\n".join(lines))
     (RESULTS / "etape5_synthese.txt").write_text("\n".join(lines), encoding="utf-8")

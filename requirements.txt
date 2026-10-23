@@ -1,0 +1,12 @@
+# Pipeline local (entraînement + quantization + suivi)
+# PyTorch avec CUDA (RTX 50xx) : installer d'abord
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+ultralytics>=8.4
+onnx>=1.17
+onnxruntime>=1.20
+onnxslim
+mlflow>=3.0
+matplotlib
+pyyaml
+opencv-python
+roboflow

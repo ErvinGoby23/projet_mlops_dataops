@@ -1,0 +1,58 @@
+# =====================================================================
+#  Configuration unique du projet ASL embarqué
+#  Tous les scripts lisent ce fichier : on change un réglage ici, pas dans le code.
+#  Les chemins sont relatifs à la racine du repo.
+# =====================================================================
+
+paths:
+  model_pt: model/best.pt              # modèle entraîné (point de départ)
+  data: datasets/asl/data.yaml         # dataset Roboflow (non versionné dans git)
+  exports: exports                     # modèles ONNX générés
+  results: results                     # résultats JSON + graphiques (versionnés)
+  runs: runs                           # sorties Ultralytics
+
+dataset:
+  roboflow_workspace: david-lee-d0rhs
+  roboflow_project: american-sign-language-letters
+  roboflow_version: 1
+
+training:
+  base_model: yolov8n.pt
+  imgsz: 640
+  epochs: 80
+  patience: 20
+  batch: 16
+
+evaluation:
+  device: cpu                          # CPU = plus proche d'un appareil embarqué
+  test_split: test                     # jeu officiel (72 images)
+  # jeu élargi valid + test (216 images) pour l'analyse par lettre
+
+benchmark:
+  batches: [1, 8, 32]
+  runs_bs1: 50                         # passages pour batch=1 (moins pour les gros batchs)
+  repeats_bs1: 3                       # mesure batch=1 répétée, on garde la médiane
+  warmup: 3
+
+quantization:
+  calib_images: 100                    # étape 6 : ~100 images suffisent
+  per_channel: true
+  activation_type: QUInt8
+  weight_type: QInt8
+  head_block: 22                       # bloc de la tête de détection YOLOv8 (à garder en FP32)
+
+resolutions: [640, 416, 320]           # étape 4
+
+sensibilite:                           # étape 6
+  imgsz: 416
+  calib_images_blocks: 50
+  calib_sizes: [10, 50, 100, 300]
+
+decision:
+  reference: onnx_fp32_640
+  max_drop_map50: 0.02                 # perte max tolérée de mAP50 vs la référence
+
+mlflow:
+  tracking_uri: sqlite:///mlflow.db
+  experiment: asl-embarque-quantization
+  registered_model: asl-detector

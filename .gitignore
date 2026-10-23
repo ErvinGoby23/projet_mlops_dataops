@@ -1,9 +1,25 @@
+# Python
 .venv/
 __pycache__/
-runs/
+*.cache
+
+# Données et artefacts générés (reproductibles avec le pipeline)
 datasets/
 exports/
+runs/
 dist/
+weights/
+*.onnx
+*.pt
+!model/best.pt
+sym_shape_infer_temp.onnx
+
+# MLflow local
+mlflow.db
+mlruns/
+mlartifacts/
+
+# Archives (sauf le placeholder des modèles de l'app)
 *.zip
 !app/assets/models/.gitkeep
 
@@ -14,12 +30,3 @@ app/.dart_tool/
 app/.flutter-plugins*
 app/pubspec.lock
 app/test/
-# Étapes 1 à 5 (générés en local)
-mlflow.db
-mlruns/
-mlartifacts/
-*.onnx
-*.pt
-!model/best.pt
-weights/
-*.cache
