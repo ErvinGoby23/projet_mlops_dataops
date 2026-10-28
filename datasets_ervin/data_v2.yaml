@@ -1,0 +1,32 @@
+names:
+- A
+- B
+- C
+- D
+- E
+- F
+- G
+- H
+- I
+- J
+- K
+- L
+- M
+- N
+- O
+- P
+- Q
+- R
+- S
+- T
+- U
+- V
+- W
+- X
+- Y
+- Z
+test: C:/Users/ervin/Documents/efrei/master2/devops_dataops/asl-ios/asl-ios/datasets/asl/test/images
+train:
+- C:/Users/ervin/Documents/efrei/master2/devops_dataops/asl-ios/asl-ios/datasets/asl/train/images
+- C:/Users/ervin/Documents/efrei/master2/devops_dataops/asl-ios/asl-ios/datasets_ervin/v2/train/images
+val: C:/Users/ervin/Documents/efrei/master2/devops_dataops/asl-ios/asl-ios/datasets/asl/valid/images

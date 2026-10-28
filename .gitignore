@@ -12,7 +12,13 @@ weights/
 *.onnx
 *.pt
 !model/best.pt
+!model/best_v2.pt
 sym_shape_infer_temp.onnx
+
+# Photos v2 : originaux iPhone (lourds, GPS) et JPEG intermédiaires (regénérables)
+datasets_ervin/brutes/
+datasets_ervin/jpg/
+apercu_JZ/
 
 # MLflow local
 mlflow.db
