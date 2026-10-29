@@ -1,0 +1,83 @@
+"""
+D2 — DISTILLATION : la v1 continue son apprentissage avec l'aide du professeur
+
+Élève      : la v1 (model/best.pt, YOLOv8n déjà fine-tuné)
+Professeur : model/teacher_v8s.pt (YOLOv8s, entraîné dans d1)
+Question : en imitant aussi le professeur, la v1 devient-elle meilleure ?
+Même taille, même vitesse qu'avant : seul le score peut changer.
+Même recette que la v1 (config.yaml, pas de miroir) + distill_model. À lancer dans le venv GPU.
+Si model/best_distill.pt existe déjà, l'entraînement est sauté.
+"""
+import shutil
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import torch  # noqa: E402
+from ultralytics import YOLO  # noqa: E402
+
+from optimisation.common import (CFG, P, ROOT, banner, eval_yaml, evaluate,  # noqa: E402
+                                 save_json, size_mb)
+
+TEACHER = ROOT / "model" / "teacher_v8s.pt"
+OUT = ROOT / "model" / "best_distill.pt"
+NAME = "distill_v8n"
+IMGSZ = 640
+
+
+def train():
+    if not TEACHER.exists():
+        sys.exit("❌ Professeur absent : lance d'abord distillation/d1_professeur.py")
+    t = CFG["training"]
+    device = 0 if torch.cuda.is_available() else "cpu"
+    print(f"Distillation sur : {torch.cuda.get_device_name(0) if device == 0 else 'CPU'}")
+    print(f"Élève : {P['model_pt'].name} (v1) | Professeur : {TEACHER.name}")
+    model = YOLO(str(P["model_pt"]))                  # on part de la v1 déjà entraînée
+    model.train(data=str(P["data"]), epochs=t["epochs"], imgsz=t["imgsz"], batch=t["batch"],
+                patience=t["patience"], fliplr=0.0, device=device, workers=2,
+                project=str(P["runs"]), name=NAME, exist_ok=True,
+                distill_model=str(TEACHER))           # <- active la distillation
+    best = Path(model.trainer.save_dir) / "weights" / "best.pt"
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(best, OUT)
+    print(f"✅ Élève distillé copié dans {OUT}")
+
+
+def main():
+    if OUT.exists():
+        print(f"ℹ️  {OUT.name} existe déjà : entraînement sauté.")
+    else:
+        train()
+
+    data_eval = eval_yaml()
+    models = {"v1": P["model_pt"], "v1_distillee": OUT}
+    res = {"imgsz": IMGSZ}
+    for name, path in models.items():
+        t = evaluate(path, IMGSZ, tag=f"{name}_test", project="distill_d2")
+        e = evaluate(path, IMGSZ, data=data_eval, split="test", tag=f"{name}_216", project="distill_d2")
+        res[name] = {"taille_mo": size_mb(path),
+                     "mAP50_test": t[0], "mAP50-95_test": t[1],
+                     "mAP50_216img": e[0], "mAP50-95_216img": e[1], "ap50_par_lettre": e[2]}
+
+    v1, d = res["v1"], res["v1_distillee"]
+    res["distillee_meilleure"] = d["mAP50-95_216img"] > v1["mAP50-95_216img"]
+    save_json("distill_d2.json", res)
+
+    lines = banner(f"D2 — v1 vs v1 distillée (YOLOv8n tous les deux, {IMGSZ})") + [
+        f"{'':16}{'Mo':>7}{'mAP50':>8}{'50-95':>8}{'mAP50':>9}{'50-95':>8}",
+        f"{'':16}{'':>7}{'test (72)':>16}{'216 images':>17}"]
+    for label, r in [("v1", v1), ("v1 distillée", d)]:
+        lines.append(f"{label:16}{r['taille_mo']:>7.2f}{r['mAP50_test']:>8.3f}{r['mAP50-95_test']:>8.3f}"
+                     f"{r['mAP50_216img']:>9.3f}{r['mAP50-95_216img']:>8.3f}")
+    lines.append(f"{'Écart':16}{'':>7}{d['mAP50_test'] - v1['mAP50_test']:>+8.3f}"
+                 f"{d['mAP50-95_test'] - v1['mAP50-95_test']:>+8.3f}"
+                 f"{d['mAP50_216img'] - v1['mAP50_216img']:>+9.3f}"
+                 f"{d['mAP50-95_216img'] - v1['mAP50-95_216img']:>+8.3f}")
+    lines.append("✅ La distillation améliore la v1 (mAP50-95, 216 images)."
+                 if res["distillee_meilleure"]
+                 else "⚠️  La distillation n'améliore pas la v1 (mAP50-95, 216 images).")
+    print("\n".join(lines))
+
+
+if __name__ == "__main__":      # obligatoire sous Windows (multiprocessing)
+    main()
