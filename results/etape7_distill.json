@@ -1,0 +1,20 @@
+{
+  "fp32": "exports\\distill_fp32_416.onnx",
+  "int8": "exports\\distill_int8_416.onnx",
+  "imgsz": 416,
+  "n_eval": 216,
+  "exactitude_fp32": 0.8796296296296297,
+  "exactitude_int8": 0.8657407407407407,
+  "ecart_int8_moins_fp32": -0.013888888888888888,
+  "ic95": [
+    -0.037037037037037035,
+    0.009259259259259259
+  ],
+  "mcnemar_juste_fp32_seul": 5,
+  "mcnemar_juste_int8_seul": 2,
+  "mcnemar_p": 0.453125,
+  "n_fidelite": 1728,
+  "meme_lettre_toutes": 0.9936342592592593,
+  "meme_lettre_216_non_vues": 0.9490740740740741,
+  "iou_moyen_boites": 0.9776949437218889
+}
