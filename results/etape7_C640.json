@@ -1,0 +1,20 @@
+{
+  "fp32": "exports\\asl_fp32_640.onnx",
+  "int8": "exports\\asl_int8_static_C_percentile_tete_fp32.onnx",
+  "imgsz": 640,
+  "n_eval": 216,
+  "exactitude_fp32": 0.8333333333333334,
+  "exactitude_int8": 0.8287037037037037,
+  "ecart_int8_moins_fp32": -0.004629629629629629,
+  "ic95": [
+    -0.023148148148148147,
+    0.013888888888888888
+  ],
+  "mcnemar_juste_fp32_seul": 3,
+  "mcnemar_juste_int8_seul": 2,
+  "mcnemar_p": 1.0,
+  "n_fidelite": 1728,
+  "meme_lettre_toutes": 0.9918981481481481,
+  "meme_lettre_216_non_vues": 0.9629629629629629,
+  "iou_moyen_boites": 0.9724201698204075
+}
