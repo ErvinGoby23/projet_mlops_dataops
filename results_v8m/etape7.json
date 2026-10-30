@@ -1,0 +1,20 @@
+{
+  "fp32": "C:\\Users\\ervin\\Documents\\efrei\\master2\\devops_dataops\\asl-ios\\asl-ios\\exports_v8m\\asl_fp32_416.onnx",
+  "int8": "C:\\Users\\ervin\\Documents\\efrei\\master2\\devops_dataops\\asl-ios\\asl-ios\\exports_v8m\\asl_int8_static_416.onnx",
+  "imgsz": 416,
+  "n_eval": 216,
+  "exactitude_fp32": 0.8981481481481481,
+  "exactitude_int8": 0.8981481481481481,
+  "ecart_int8_moins_fp32": 0.0,
+  "ic95": [
+    -0.013888888888888888,
+    0.013888888888888888
+  ],
+  "mcnemar_juste_fp32_seul": 1,
+  "mcnemar_juste_int8_seul": 1,
+  "mcnemar_p": 1.0,
+  "n_fidelite": 1728,
+  "meme_lettre_toutes": 0.9988425925925926,
+  "meme_lettre_216_non_vues": 0.9907407407407407,
+  "iou_moyen_boites": 0.9802559647447278
+}
