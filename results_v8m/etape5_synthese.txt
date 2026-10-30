@@ -1,0 +1,25 @@
+
+================================================================================================
+RÉSULTATS ÉTAPE 5 — Synthèse de toutes les versions
+================================================================================================
+Version                     Taille   mAP50  mAP50 216   ms b1   ms b8   Perte  Règle
+------------------------------------------------------------------------------------------------
+onnx_int8_static_320         26.75   0.922      0.929    25.7    22.2  -0.020  ❌
+onnx_int8_static_416         26.75   0.945      0.941    39.4    39.8  -0.008  ✅  ← CHOISI
+onnx_fp32_320               103.80   0.921      0.923    54.7    61.6       —  
+onnx_int8_static_A_640       26.75   0.000      0.000    85.1    89.8  -0.949  ❌
+onnx_int8_static_640         26.70   0.949      0.950    87.7    98.5  +0.001  ✅
+onnx_fp32_416               103.80   0.942      0.942    88.6   113.4       —  
+onnx_int8_static_C_640       26.70   0.964      0.952    89.5   102.1  +0.003  ✅
+onnx_int8_dyn_640            26.37   0.958          —   182.9   246.8       —  
+onnx_fp32_640               103.76   0.947      0.949   236.4   304.9       —  
+pytorch_fp32_640             52.06   0.947          —   403.4   471.0       —  
+------------------------------------------------------------------------------------------------
+Règle : modèle INT8 le plus rapide (batch 1) avec perte ≤ 0.02 de mAP50 216 vs onnx_fp32_640
+Choix : onnx_int8_static_416
+Lettre la plus dégradée pour ce choix : T (-0.078)
+Empreinte du dataset : 0a39b5bb66c32ad3  ({'train': 1512, 'valid': 144, 'test': 72})
+⚠️  Les vitesses viennent de runs différents (±10 % de variabilité) : comparer de préférence les versions d'une même étape.
+Graphiques : C:\Users\ervin\Documents\efrei\master2\devops_dataops\asl-ios\asl-ios\results_v8m\graphiques
+================================================================================================
+Interface MLflow : mlflow ui --backend-store-uri sqlite:///mlflow.db

@@ -5,23 +5,28 @@
 # =====================================================================
 
 paths:
-  model_pt: model/best.pt              # modèle entraîné (point de départ)
-  data: datasets/asl/data.yaml         # dataset Roboflow (non versionné dans git)
-  exports: exports                     # modèles ONNX générés
-  results: results                     # résultats JSON + graphiques (versionnés)
-  runs: runs                           # sorties Ultralytics
+  model_pt: model/best_v8m.pt
+  data: datasets/asl/data.yaml
+  exports: exports_v8m
+  results: results_v8m
+  runs: runs_v8m
+
+training:
+  base_model: yolov8m.pt
+  imgsz: 640
+  epochs: 150
+  patience: 30
+  batch: -1
+  
+mlflow:
+  tracking_uri: sqlite:///mlflow.db
+  experiment: asl-embarque-quantization-v8m
+  registered_model: asl-detector-v8m
 
 dataset:
   roboflow_workspace: david-lee-d0rhs
   roboflow_project: american-sign-language-letters
   roboflow_version: 1
-
-training:
-  base_model: yolov8n.pt
-  imgsz: 640
-  epochs: 80
-  patience: 20
-  batch: 16
 
 evaluation:
   device: cpu                          # CPU = plus proche d'un appareil embarqué
@@ -51,8 +56,3 @@ sensibilite:                           # étape 6
 decision:
   reference: onnx_fp32_640
   max_drop_map50: 0.02                 # perte max tolérée de mAP50 vs la référence
-
-mlflow:
-  tracking_uri: sqlite:///mlflow.db
-  experiment: asl-embarque-quantization
-  registered_model: asl-detector

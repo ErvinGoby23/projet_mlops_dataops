@@ -32,8 +32,8 @@ def main():
     ap.add_argument("--from", dest="start", type=int, default=1)
     args = ap.parse_args()
 
-    if not (ROOT / "model" / "best.pt").exists():
-        sys.exit("❌ model/best.pt manquant : lance d'abord  python training/train.py")
+    if not (ROOT / "model" / "best_v8m.pt").exists():
+        sys.exit("❌ model/best_v8m.pt manquant : lance d'abord  python training/train.py")
 
     order = [args.only] if args.only else [n for n in STEPS if n >= args.start or n == 5]
     t_all = time.perf_counter()

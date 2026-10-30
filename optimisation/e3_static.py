@@ -6,6 +6,10 @@ Expérience 3 — Quantization post-training STATIQUE (calibrée), 3 variantes �
   C. Percentile, tête de détection FP32  -> les outliers comptent-ils encore ?
 
 Question : calculer les échelles des activations à l'avance permet-il d'accélérer sans perdre ?
+
+Note v8m : la variante C (Percentile) garde en mémoire toutes les activations des images
+de calibration -> manque de RAM avec 100 images sur le v8m. Elle est calibrée sur 25 images.
+Les variantes déjà quantifiées (fichier présent dans exports) sont réutilisées.
 """
 import sys
 import time
@@ -17,6 +21,7 @@ from optimisation.common import (CFG, P, banner, batch_of, bench_onnx, calibrati
                                  save_json, score_gap, size_mb, test_split)
 
 IMGSZ = 640
+CALIB_PERCENTILE = 25          # images de calibration pour Percentile (limite de RAM avec le v8m)
 VARIANTS = {
     "A_minmax_tout": dict(method="minmax", protect_head=False, extra={}),
     "B_minmax_tete_fp32": dict(method="minmax", protect_head=True, extra={}),
@@ -31,10 +36,16 @@ def main():
     paths = {}
     for name, v in VARIANTS.items():
         t0 = time.perf_counter()
-        paths[name] = quantize_static(fp32, P["exports"] / f"asl_int8_static_{name}.onnx", IMGSZ,
-                                      calib, method=v["method"], protect_head=v["protect_head"],
-                                      extra_options=v["extra"])
-        print(f"✅ {name} ({size_mb(paths[name]):.2f} Mo, {time.perf_counter() - t0:.0f} s)")
+        dst = P["exports"] / f"asl_int8_static_{name}.onnx"
+        if dst.exists():
+            paths[name] = dst
+            print(f"↩️  {name} déjà quantifié, réutilisé ({size_mb(dst):.2f} Mo)")
+            continue
+        files = calib[:CALIB_PERCENTILE] if v["method"] == "percentile" else calib
+        paths[name] = quantize_static(fp32, dst, IMGSZ, files, method=v["method"],
+                                      protect_head=v["protect_head"], extra_options=v["extra"])
+        print(f"✅ {name} ({size_mb(paths[name]):.2f} Mo, {len(files)} images de calibration, "
+              f"{time.perf_counter() - t0:.0f} s)")
 
     data_eval = eval_yaml()
     imgs = batch_of(images_of(test_split())[:16], IMGSZ)
@@ -54,6 +65,7 @@ def main():
     res["_lettres_plus_degradees"] = sorted(
         ((l, res[best]["ap50_par_lettre"].get(l, 0.0) - ap) for l, ap in ref.items()),
         key=lambda x: x[1])[:5]
+    res["_calib_percentile_images"] = CALIB_PERCENTILE
     save_json("etape3.json", res)
 
     lines = banner("E3 — Quantization statique (CPU, 640)") + [

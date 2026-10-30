@@ -157,7 +157,7 @@ def score_gap(path_ref, path, imgs):
 # Export + quantization
 # ---------------------------------------------------------------------------
 def export_onnx(imgsz, dst=None):
-    """Exporte model/best.pt en ONNX FP32 (batch dynamique). Réutilise le fichier s'il existe."""
+    """Exporte le modèle (P["model_pt"]) en ONNX FP32 (batch dynamique). Réutilise le fichier s'il existe."""
     from ultralytics import YOLO
     dst = Path(dst or P["exports"] / f"asl_fp32_{imgsz}.onnx")
     if not dst.exists():
