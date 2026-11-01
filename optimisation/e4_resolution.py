@@ -18,7 +18,11 @@ def main():
     models = {}
     for size in CFG["resolutions"]:
         fp32 = export_onnx(size)
-        int8 = quantize_static(fp32, P["exports"] / f"asl_int8_static_{size}.onnx", size, calib)
+        q = CFG["quantization"]
+        method = q.get("calib_method", "minmax")
+        extra = {"CalibPercentile": q["calib_percentile"]} if method == "percentile" else {}
+        int8 = quantize_static(fp32, P["exports"] / f"asl_int8_static_{size}.onnx", size, calib,
+                               method=method, extra_options=extra)
         models[f"{size}_FP32"], models[f"{size}_INT8"] = (fp32, size), (int8, size)
 
     res = {}

@@ -84,7 +84,8 @@ def collect():
                     continue
                 name = f"onnx_{prec.lower()}_{size}" if prec == "FP32" else f"onnx_int8_static_{size}"
                 v[name] = dict(etape=4, format="ONNX", precision=prec,
-                               methode="aucune" if prec == "FP32" else "PTQ statique MinMax, tête FP32",
+                            methode="aucune" if prec == "FP32" else
+                               f"PTQ statique {CFG['quantization'].get('calib_method', 'minmax').capitalize()}, tête FP32",
                                imgsz=size, taille=d["taille_mo"], map50_test=d["mAP50_test"],
                                map5095_test=d["mAP50-95_test"], map50_216=d["mAP50_216img"],
                                ms1=ms(d["ms_par_image"], 1), ms8=ms(d["ms_par_image"], 8),

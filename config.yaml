@@ -36,6 +36,8 @@ benchmark:
 
 quantization:
   calib_images: 100                    # étape 6 : ~100 images suffisent
+  calib_method: percentile             # étape 8 : percentile divise la perte par 2 en 416 (minmax avant)
+  calib_percentile: 99.999
   per_channel: true
   activation_type: QUInt8
   weight_type: QInt8
