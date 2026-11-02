@@ -1,0 +1,43 @@
+{
+  "images": "datasets_externe/confirmation_50",
+  "a": "exports\\teacher_v8s_fp32_416.onnx",
+  "b": "exports\\distill_fp32_416.onnx",
+  "imgsz": 416,
+  "n": 1300,
+  "exactitude_a": 0.3484615384615385,
+  "exactitude_b": 0.3730769230769231,
+  "ecart_b_moins_a": 0.024615384615384615,
+  "ic95": [
+    0.0015384615384615385,
+    0.04846153846153846
+  ],
+  "mcnemar_juste_a_seul": 114,
+  "mcnemar_juste_b_seul": 146,
+  "mcnemar_p": 0.054328772949860875,
+  "meme_lettre": 0.5615384615384615,
+  "aucune_detection_a": 0.21923076923076923,
+  "perdues_par_b": {
+    "A": 6,
+    "B": 6,
+    "C": 9,
+    "D": 6,
+    "E": 3,
+    "F": 5,
+    "G": 1,
+    "H": 10,
+    "I": 8,
+    "J": 2,
+    "K": 6,
+    "L": 1,
+    "M": 2,
+    "O": 5,
+    "Q": 9,
+    "R": 9,
+    "S": 4,
+    "T": 9,
+    "U": 4,
+    "V": 2,
+    "W": 5,
+    "X": 2
+  }
+}
