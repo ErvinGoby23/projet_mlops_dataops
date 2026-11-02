@@ -13,7 +13,7 @@ weights/
 *.pt
 !model/best.pt
 sym_shape_infer_temp.onnx
-
+datasets_externe/
 # MLflow local
 mlflow.db
 mlruns/

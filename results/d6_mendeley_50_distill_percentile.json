@@ -1,0 +1,39 @@
+{
+  "images": "datasets_externe/echantillon_50",
+  "a": "C:\\Users\\ervin\\Documents\\efrei\\master2\\devops_dataops\\asl-ios\\asl-ios\\exports\\distill_fp32_416.onnx",
+  "b": "exports\\distill_int8_416_percentile.onnx",
+  "imgsz": 416,
+  "n": 1300,
+  "exactitude_a": 0.3730769230769231,
+  "exactitude_b": 0.35923076923076924,
+  "ecart_b_moins_a": -0.013846153846153847,
+  "ic95": [
+    -0.026923076923076925,
+    -0.001519230769231049
+  ],
+  "mcnemar_juste_a_seul": 45,
+  "mcnemar_juste_b_seul": 27,
+  "mcnemar_p": 0.04437092000802569,
+  "meme_lettre": 0.8076923076923077,
+  "aucune_detection_a": 0.26153846153846155,
+  "perdues_par_b": {
+    "A": 3,
+    "B": 5,
+    "C": 2,
+    "D": 1,
+    "F": 2,
+    "G": 1,
+    "I": 5,
+    "L": 1,
+    "N": 1,
+    "O": 1,
+    "P": 3,
+    "Q": 2,
+    "R": 5,
+    "S": 7,
+    "U": 1,
+    "V": 2,
+    "W": 2,
+    "X": 1
+  }
+}
