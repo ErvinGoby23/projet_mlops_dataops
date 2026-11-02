@@ -5,6 +5,7 @@ __pycache__/
 
 # Données et artefacts générés (reproductibles avec le pipeline)
 datasets/
+datasets_externe/
 exports/
 runs/
 dist/
