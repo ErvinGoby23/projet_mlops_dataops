@@ -18,7 +18,7 @@ datasets_externe/
 mlflow.db
 mlruns/
 mlartifacts/
-
+!model/best_distill.pt
 # Archives (sauf le placeholder des modèles de l'app)
 *.zip
 !app/assets/models/.gitkeep

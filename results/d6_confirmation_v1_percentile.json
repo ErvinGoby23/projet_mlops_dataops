@@ -1,0 +1,40 @@
+{
+  "images": "datasets_externe/confirmation_50",
+  "a": "exports\\asl_fp32_416.onnx",
+  "b": "exports\\asl_int8_static_416.onnx",
+  "imgsz": 416,
+  "n": 1300,
+  "exactitude_a": 0.30923076923076925,
+  "exactitude_b": 0.2784615384615385,
+  "ecart_b_moins_a": -0.03076923076923077,
+  "ic95": [
+    -0.04461538461538461,
+    -0.016923076923076923
+  ],
+  "mcnemar_juste_a_seul": 60,
+  "mcnemar_juste_b_seul": 20,
+  "mcnemar_p": 8.580559867049611e-06,
+  "meme_lettre": 0.786923076923077,
+  "aucune_detection_a": 0.3161538461538462,
+  "perdues_par_b": {
+    "A": 1,
+    "B": 3,
+    "C": 5,
+    "D": 1,
+    "F": 6,
+    "H": 2,
+    "I": 5,
+    "K": 2,
+    "L": 1,
+    "N": 6,
+    "O": 10,
+    "P": 1,
+    "Q": 1,
+    "R": 1,
+    "S": 3,
+    "V": 5,
+    "W": 2,
+    "X": 3,
+    "Y": 2
+  }
+}

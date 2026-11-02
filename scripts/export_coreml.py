@@ -15,7 +15,7 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-PT = Path("model/best.pt")
+PT = Path("model/best_distill.pt")
 OUT = Path("exports")
 APP_MODELS = Path("app/assets/models")
 NMS = os.environ.get("EXPORT_NMS", "true").lower() == "true"
