@@ -1,8 +1,10 @@
-# Construit l'app iPhone sur un Mac de GitHub Actions (pas besoin de Mac chez toi).
+# Construit l'app iPhone (version ONNX) sur un Mac de GitHub Actions (pas besoin de Mac chez toi).
 # 1. Exporte 5 versions CoreML (FP32 640, INT8 640, FP16 416, INT8 416, INT8 320)
 # 2. Les met TOUTES dans l'app (choix + mesure des FPS en stream sur l'iPhone)
+#    + le modèle ONNX INT8 416 (distillée, Percentile) dans app/assets/onnx/
 # 3. Compile l'app Flutter sans signature -> fichier .ipa à installer avec Sideloadly
-name: Build iOS (ASL)
+#    Identifiant différent (com.ervin.aslOnnx) -> s'installe À CÔTÉ de l'app CoreML
+name: Build iOS (ASL ONNX)
 
 on:
   push:
@@ -54,6 +56,9 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'La caméra sert à reconnaître les lettres de la langue des signes.'" ios/Runner/Info.plist
           # Le plugin YOLO demande iOS 16 minimum
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 16.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          # Version ONNX : autre identifiant -> s'installe À CÔTÉ de l'app CoreML
+          sed -i '' 's/com\.ervin\.aslSignes/com.ervin.aslOnnx/g' ios/Runner.xcodeproj/project.pbxproj
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'ASL ONNX'" ios/Runner/Info.plist
           flutter pub get
           flutter build ios --config-only --release --no-codesign || true
           if [ -f ios/Podfile ]; then
@@ -70,10 +75,10 @@ jobs:
         run: |
           mkdir -p dist/Payload
           cp -R app/build/ios/iphoneos/Runner.app dist/Payload/
-          cd dist && zip -qry ASL-Signes.ipa Payload
+          cd dist && zip -qry ASL-ONNX.ipa Payload
 
       - name: Télécharger l'app (.ipa)
         uses: actions/upload-artifact@v4
         with:
-          name: ASL-Signes-ipa
-          path: dist/ASL-Signes.ipa
+          name: ASL-ONNX-ipa
+          path: dist/ASL-ONNX.ipa

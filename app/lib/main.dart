@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ultralytics_yolo/ultralytics_yolo.dart';
+import 'onnx_page.dart';
 
 void main() => runApp(const AslApp());
 
@@ -19,7 +20,7 @@ class AslApp extends StatelessWidget {
         brightness: Brightness.dark,
         colorSchemeSeed: const Color(0xFFFF6B35),
       ),
-      home: const DetectionPage(),
+       home: const OnnxPage(),
     );
   }
 }
