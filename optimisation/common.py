@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+# Lit config.yaml et transforme les chemins en chemins complets.
 def load_config():
     cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
     cfg["paths"] = {k: ROOT / v for k, v in cfg["paths"].items()}
@@ -29,20 +30,24 @@ CFG = load_config()
 P = CFG["paths"]
 
 
+# Donne le chemin d'un fichier dans le dossier results/ (le crée si besoin).
 def results_path(name):
     P["results"].mkdir(parents=True, exist_ok=True)
     return P["results"] / name
 
 
+# Enregistre des résultats dans un fichier JSON du dossier results/.
 def save_json(name, obj):
     results_path(name).write_text(json.dumps(obj, indent=2, default=str), encoding="utf-8")
 
 
+# Relit un fichier JSON de results/ (None s'il n'existe pas).
 def load_json(name):
     p = P["results"] / name
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
+# Donne la taille d'un fichier en mégaoctets.
 def size_mb(path):
     return Path(path).stat().st_size / 1e6
 
@@ -50,6 +55,7 @@ def size_mb(path):
 # ---------------------------------------------------------------------------
 # Données
 # ---------------------------------------------------------------------------
+# Prépare une image comme Ultralytics : redimensionne sans déformer et ajoute des bandes grises.
 def letterbox(path, size):
     """Même prétraitement qu'Ultralytics : redimensionne sans déformer + bandes grises.
     (Indispensable : un prétraitement différent = train-serving skew.)"""
@@ -64,20 +70,24 @@ def letterbox(path, size):
     return canvas[:, :, ::-1].transpose(2, 0, 1).astype(np.float32) / 255.0
 
 
+# Liste les images d'un dossier (train, valid ou test).
 def images_of(split):
     folder = P["data"].parent / split / "images"
     return sorted(p for p in folder.glob("*") if p.suffix.lower() in (".jpg", ".jpeg", ".png"))
 
 
+# Choisit le dossier de test (ou valid s'il n'y a pas de test).
 def test_split():
     s = CFG["evaluation"]["test_split"]
     return s if images_of(s) else "valid"
 
 
+# Prépare plusieurs images et les empile en un seul paquet.
 def batch_of(files, size):
     return np.stack([letterbox(f, size) for f in files])
 
 
+# Crée un fichier qui regroupe valid + test (216 images) pour évaluer.
 def eval_yaml():
     """Jeu élargi valid + test (216 images) : plus robuste pour l'analyse par lettre.
     ⚠️ valid a servi à choisir le meilleur epoch -> légèrement optimiste ; sert à COMPARER."""
@@ -93,6 +103,7 @@ def eval_yaml():
 # ---------------------------------------------------------------------------
 # Évaluation (précision)
 # ---------------------------------------------------------------------------
+# Mesure la précision d'un modèle : mAP50, mAP50-95 et score par lettre.
 def evaluate(model_path, imgsz, data=None, split=None, tag="val", project="eval"):
     """Retourne (mAP50, mAP50-95, AP50 par lettre)."""
     from ultralytics import YOLO
@@ -107,16 +118,19 @@ def evaluate(model_path, imgsz, data=None, split=None, tag="val", project="eval"
 # ---------------------------------------------------------------------------
 # ONNX Runtime
 # ---------------------------------------------------------------------------
+# Charge un modèle ONNX pour le faire tourner sur le CPU.
 def session(path):
     import onnxruntime as ort
     return ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
 
 
+# Donne le nom de l'entrée du modèle (là où on envoie l'image).
 def input_name(path_or_sess):
     s = session(path_or_sess) if isinstance(path_or_sess, (str, Path)) else path_or_sess
     return s.get_inputs()[0].name
 
 
+# Chronomètre le modèle et donne le temps moyen par image en ms.
 def bench(run_fn, imgsz, bs):
     """Temps moyen par image (ms). Warm-up puis moyenne sur plusieurs passages (cf. TP 7).
     run_fn(x) exécute le modèle sur un tableau numpy (bs, 3, imgsz, imgsz)."""
@@ -131,6 +145,7 @@ def bench(run_fn, imgsz, bs):
     return (time.perf_counter() - t0) / n * 1000 / bs
 
 
+# Mesure la vitesse d'un modèle ONNX pour chaque taille de paquet (1, 8, 32).
 def bench_onnx(path, imgsz, batches=None):
     """{batch: ms/image}. batch=1 répété (médiane) car c'est le mode stream."""
     sess = session(path)
@@ -143,6 +158,7 @@ def bench_onnx(path, imgsz, batches=None):
     return out
 
 
+# Compare les scores de deux modèles sur les mêmes images (écart max et moyen).
 def score_gap(path_ref, path, imgs):
     """Écart max / moyen des scores des lettres (lignes 4+ de la sortie YOLO) vs la référence.
     ⚠️ la moyenne est noyée par les milliers de positions sans main : toujours vérifier le mAP."""
@@ -156,6 +172,7 @@ def score_gap(path_ref, path, imgs):
 # ---------------------------------------------------------------------------
 # Export + quantization
 # ---------------------------------------------------------------------------
+# Convertit le modèle PyTorch (best.pt) en ONNX FP32.
 def export_onnx(imgsz, dst=None):
     """Exporte model/best.pt en ONNX FP32 (batch dynamique). Réutilise le fichier s'il existe."""
     from ultralytics import YOLO
@@ -168,6 +185,7 @@ def export_onnx(imgsz, dst=None):
     return dst
 
 
+# Recopie les infos du modèle (noms des lettres…) perdues pendant la quantization.
 def copy_metadata(src, dst):
     """Recopie les métadonnées Ultralytics (noms des lettres, imgsz…) perdues à la quantization."""
     import onnx
@@ -177,6 +195,7 @@ def copy_metadata(src, dst):
     onnx.save(m_dst, str(dst))
 
 
+# Trouve le numéro du bloc (0 à 22) d'une opération à partir de son nom.
 def block_of(node_name):
     """'/model.12/cv2/conv/Conv' -> 12 (None si hors bloc)."""
     if node_name.startswith("/model."):
@@ -186,6 +205,7 @@ def block_of(node_name):
     return None
 
 
+# Liste les opérations de la fin de la tête (pas les convolutions) à garder en FP32.
 def head_nodes(onnx_path):
     """Opérations non-convolution de la tête de détection (à garder en FP32, cf. étapes 3 et 6)."""
     import onnx
@@ -194,6 +214,7 @@ def head_nodes(onnx_path):
             if block_of(n.name) == hb and n.op_type != "Conv"]
 
 
+# Tire au hasard n images d'entraînement pour la calibration.
 def calibration_files(n, seed=0):
     import random
     files = images_of("train")              # JAMAIS les images de test
@@ -201,11 +222,13 @@ def calibration_files(n, seed=0):
     return files[:n]
 
 
+# Donne les images de calibration une par une à ONNX Runtime.
 class CalibReader:
     """Fournit les images de calibration une par une à ONNX Runtime."""
     def __init__(self, input_name, files, imgsz):
         self.input_name, self.files, self.imgsz, self.i = input_name, files, imgsz, 0
 
+    # Renvoie l'image suivante (None quand il n'y en a plus).
     def get_next(self):
         if self.i >= len(self.files):
             return None
@@ -214,9 +237,10 @@ class CalibReader:
         return {self.input_name: x}
 
 
+# Quantifie le modèle en INT8 statique, avec ou sans la fin de la tête en FP32.
 def quantize_static(src, dst, imgsz, calib_files, method="minmax", protect_head=True,
                     nodes_to_quantize=None, extra_options=None):
-    """Quantization post-training statique QDQ (recette retenue : MinMax, per-channel, tête FP32)."""
+    """Quantization post-training statique QDQ (recette retenue : MinMax, per-channel, décodage de la tête en FP32)."""
     from onnxruntime.quantization import (CalibrationDataReader, CalibrationMethod, QuantFormat,
                                           QuantType, quantize_static as _qs)
 
@@ -238,8 +262,6 @@ def quantize_static(src, dst, imgsz, calib_files, method="minmax", protect_head=
     return Path(dst)
 
 
-# ---------------------------------------------------------------------------
-# Affichage
-# ---------------------------------------------------------------------------
+# Fabrique un titre encadré de ==== pour l'affichage.
 def banner(title, width=78):
     return ["", "=" * width, title, "=" * width]
