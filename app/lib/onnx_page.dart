@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -8,10 +9,11 @@ import 'package:flutter/services.dart';
 import 'package:onnxruntime/onnxruntime.dart';
 
 /// Détection ASL avec le modèle ONNX INT8 416 (distillée, Percentile),
-/// exécuté par ONNX Runtime sur le CPU de l'iPhone.
+/// exécuté par ONNX Runtime sur le CPU de l'iPhone, dans un fil séparé (isolate)
+/// pour ne pas bloquer l'affichage de la caméra.
 const int kSize = 416;
 const String kLettres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const double kSeuil = 0.25; // même seuil que e7 / d6
+const double kSeuil = 0.25; // affichage : même seuil que e7 / d6
 const String kModele = 'assets/onnx/asl_int8_416.onnx';
 
 class Prediction {
@@ -23,11 +25,7 @@ class Prediction {
 
 /// Même chose que letterbox() de common.py : sans déformer, bandes grises 114,
 /// RGB, /255, format 1x3x416x416. "rotation" redresse l'image de la caméra.
-Float32List letterbox(CameraImage img, int rotation) {
-  final p = img.planes[0];
-  final bytes = p.bytes;
-  final stride = p.bytesPerRow;
-  final w = img.width, h = img.height;
+Float32List letterbox(Uint8List bytes, int w, int h, int stride, int rotation) {
   final tourne = rotation == 90 || rotation == 270;
   final uw = tourne ? h : w; // taille de l'image redressée
   final uh = tourne ? w : h;
@@ -95,6 +93,33 @@ Prediction predire(OrtSession session, Float32List data) {
   return Prediction(kLettres[bestCls], best, ms);
 }
 
+/// Le fil séparé : charge le modèle une fois, puis traite chaque image reçue.
+void _travailleur(List<Object> args) {
+  final versUi = args[0] as SendPort;
+  final modele = args[1] as Uint8List;
+  final recu = ReceivePort();
+  try {
+    OrtEnv.instance.init();
+    final session = OrtSession.fromBuffer(modele, OrtSessionOptions());
+    versUi.send(recu.sendPort);
+    recu.listen((msg) {
+      try {
+        final m = msg as List<Object>;
+        final sw = Stopwatch()..start();
+        final entree = letterbox(m[0] as Uint8List, m[1] as int, m[2] as int,
+            m[3] as int, m[4] as int);
+        final msPrep = sw.elapsedMicroseconds / 1000;
+        final p = predire(session, entree);
+        versUi.send(<Object>[p.lettre, p.score, p.ms, msPrep]);
+      } catch (e) {
+        versUi.send(<Object>['ERR', '$e']);
+      }
+    });
+  } catch (e) {
+    versUi.send(<Object>['ERR', 'Chargement du modèle : $e']);
+  }
+}
+
 class OnnxPage extends StatefulWidget {
   const OnnxPage({super.key});
 
@@ -104,17 +129,28 @@ class OnnxPage extends StatefulWidget {
 
 class _OnnxPageState extends State<OnnxPage> {
   CameraController? _camera;
-  OrtSession? _session;
+  Isolate? _isolate;
+  ReceivePort? _depuisTravailleur;
+  SendPort? _versTravailleur;
   String? _erreur;
 
   bool _occupe = false;
-  int _rotation = 90; // à ajuster sur le téléphone avec le bouton
+  int _rotation = 0; // l'image arrive déjà en portrait (480x640) ; ajustable avec le bouton
   String _tailleCamera = '';
 
   String? _lettre;
   double _score = 0;
   double _msInference = 0;
   double _msPreparation = 0;
+
+  // Épellation (comme l'app CoreML) : une lettre est validée si elle reste stable assez longtemps
+  static const _minConfiance = 0.55;
+  static const _dureeTenue = Duration(milliseconds: 900);
+  String? _candidat;
+  DateTime _candidatDepuis = DateTime.now();
+  bool _dejaAjoutee = false;
+  double _progression = 0;
+  String _mot = '';
 
   int _images = 0;
   double _fps = 0;
@@ -143,10 +179,15 @@ class _OnnxPageState extends State<OnnxPage> {
 
   Future<void> _demarrer() async {
     try {
-      OrtEnv.instance.init();
+      // 1. Le fil séparé qui fait tout le calcul
       final raw = await rootBundle.load(kModele);
-      _session = OrtSession.fromBuffer(raw.buffer.asUint8List(), OrtSessionOptions());
+      final port = ReceivePort();
+      _depuisTravailleur = port;
+      port.listen(_surReponse);
+      _isolate = await Isolate.spawn(
+          _travailleur, <Object>[port.sendPort, raw.buffer.asUint8List()]);
 
+      // 2. La caméra
       final cams = await availableCameras();
       final dos = cams.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
@@ -167,33 +208,65 @@ class _OnnxPageState extends State<OnnxPage> {
     }
   }
 
+  /// Image caméra : on l'envoie au fil séparé, sauf s'il est encore occupé.
   void _surImage(CameraImage img) {
-    if (_occupe || _session == null) return; // on saute les images pendant un calcul
+    final versTravailleur = _versTravailleur;
+    if (_occupe || versTravailleur == null) return; // on saute les images pendant un calcul
     _occupe = true;
-    try {
-      final sw = Stopwatch()..start();
-      final entree = letterbox(img, _rotation);
-      final msPrep = sw.elapsedMicroseconds / 1000;
-      final r = predire(_session!, entree);
-      _images++;
-      if (_mesure) {
-        _imagesMesure++;
-        _msMesure.add(r.ms);
-      }
-      if (mounted) {
-        setState(() {
-          _tailleCamera = '${img.width}x${img.height}';
-          _msPreparation = msPrep;
-          _msInference = r.ms;
-          _score = r.score;
-          _lettre = r.score >= kSeuil ? r.lettre : null;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _erreur = '$e');
-    } finally {
-      _occupe = false;
+    final p = img.planes[0];
+    _tailleCamera = '${img.width}x${img.height}';
+    versTravailleur.send(<Object>[p.bytes, img.width, img.height, p.bytesPerRow, _rotation]);
+  }
+
+  /// Réponse du fil séparé.
+  void _surReponse(dynamic msg) {
+    if (msg is SendPort) {
+      _versTravailleur = msg; // le modèle est chargé
+      return;
     }
+    final r = msg as List<Object>;
+    _occupe = false;
+    if (r[0] == 'ERR') {
+      if (mounted) setState(() => _erreur = r[1] as String);
+      return;
+    }
+    final lettre = r[0] as String;
+    final score = r[1] as double;
+    final ms = r[2] as double;
+    _images++;
+    if (_mesure) {
+      _imagesMesure++;
+      _msMesure.add(ms);
+    }
+
+    // Épellation : la lettre doit rester la même pendant 0,9 s
+    final candidat = score >= _minConfiance ? lettre : null;
+    final maintenant = DateTime.now();
+    if (candidat != _candidat) {
+      _candidat = candidat;
+      _candidatDepuis = maintenant;
+      _dejaAjoutee = false;
+    }
+    final tenue = maintenant.difference(_candidatDepuis);
+    double progression = 0;
+    if (candidat != null && !_dejaAjoutee) {
+      progression = (tenue.inMilliseconds / _dureeTenue.inMilliseconds).clamp(0.0, 1.0);
+      if (tenue >= _dureeTenue) {
+        _mot += candidat;
+        _dejaAjoutee = true;
+        progression = 0;
+        HapticFeedback.mediumImpact();
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _msInference = ms;
+      _msPreparation = r[3] as double;
+      _score = score;
+      _lettre = score >= kSeuil ? lettre : null;
+      _progression = progression;
+    });
   }
 
   void _tourner() => setState(() => _rotation = (_rotation + 90) % 360);
@@ -235,14 +308,25 @@ class _OnnxPageState extends State<OnnxPage> {
     _timerMesure?.cancel();
     _camera?.stopImageStream();
     _camera?.dispose();
-    _session?.release();
-    OrtEnv.instance.release();
+    _isolate?.kill(priority: Isolate.immediate);
+    _depuisTravailleur?.close();
     super.dispose();
   }
+
+  Widget _panneau({required Widget child}) => Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.65),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: child,
+      );
 
   @override
   Widget build(BuildContext context) {
     final cam = _camera;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -252,24 +336,32 @@ class _OnnxPageState extends State<OnnxPage> {
             Center(child: CameraPreview(cam))
           else
             const Center(child: CircularProgressIndicator()),
+
+          // ---- Haut : lettre + chiffres + boutons ----
           SafeArea(
             child: Align(
               alignment: Alignment.topCenter,
-              child: Container(
-                margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(16),
-                ),
+              child: _panneau(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text(_lettre ?? '–',
-                          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 16),
+                      SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: Stack(alignment: Alignment.center, children: [
+                          CircularProgressIndicator(
+                            value: _progression,
+                            strokeWidth: 4,
+                            color: scheme.primary,
+                            backgroundColor: Colors.white12,
+                          ),
+                          Text(_lettre ?? '–',
+                              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
+                        ]),
+                      ),
+                      const SizedBox(width: 14),
                       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('Modèle : ONNX INT8 416 (CPU)'),
                         Text('Confiance : ${(_score * 100).toStringAsFixed(0)} %'),
@@ -301,6 +393,50 @@ class _OnnxPageState extends State<OnnxPage> {
                         child: Text('Erreur : $_erreur',
                             style: const TextStyle(color: Colors.redAccent)),
                       ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ---- Bas : mot épelé ----
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: _panneau(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _mot.isEmpty ? 'Tiens une lettre ~1 s pour l\'écrire' : _mot,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: _mot.isEmpty ? 15 : 32,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 2,
+                        color: _mot.isEmpty ? Colors.white60 : Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(
+                          child: FilledButton.tonal(
+                              onPressed: () => setState(() => _mot += ' '),
+                              child: const Text('Espace'))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: FilledButton.tonal(
+                              onPressed: _mot.isEmpty
+                                  ? null
+                                  : () => setState(
+                                      () => _mot = _mot.substring(0, _mot.length - 1)),
+                              child: const Text('⌫'))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: FilledButton(
+                              onPressed: () => setState(() => _mot = ''),
+                              child: const Text('Effacer'))),
+                    ]),
                   ],
                 ),
               ),
