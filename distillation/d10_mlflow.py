@@ -4,8 +4,8 @@ même base (config.yaml > mlflow), même expérience, même empreinte du dataset
 
 - un run « distillee_int8_416_percentile » : paramètres, métriques des tests (d6, d9, CoreML),
   fichiers de résultats et graphiques en artefacts ;
-- le modèle ONNX INT8 enregistré comme nouvelle version de `asl-detector`, alias « candidate ».
-  L'alias « production » reste sur la v1 tant que le groupe n'a pas décidé.
+- le modèle ONNX INT8 enregistré comme nouvelle version de `asl-detector`, alias « production »
+  (la v1 reste dans le registry : on peut revenir en arrière en déplaçant l'alias).
 
 Lancer depuis la racine du repo (venv CPU) :  python distillation/d10_mlflow.py
 Voir :  mlflow ui --backend-store-uri sqlite:///mlflow.db   puis http://127.0.0.1:5000
@@ -57,7 +57,7 @@ def main():
         "externe_vs_v8m_int8_p": 0.77,
         # graines 0/1/2 (d9, INT8)
         "graines_int8_moyenne": 0.317,
-        "graines_int8_ecart_type": 0.021,
+        "graines_int8_ecart_type": 0.018,
         "graines_gain_vs_controle": 0.072,
         # CoreML (CI, test 72 images)
         "coreml_int8_416_mAP50": 0.874,
@@ -89,7 +89,7 @@ def main():
     client.set_registered_model_alias(REGISTERED_NAME, ALIAS, str(version))
 
     print(f"✅ Run {run.info.run_id}")
-    print(f"✅ models:/{REGISTERED_NAME}@{ALIAS} (v{version}) — l'alias « production » n'a pas bougé")
+    print(f"✅ models:/{REGISTERED_NAME}@{ALIAS} (v{version}) — l'alias « production » pointe maintenant sur la distillée")
 
 
 if __name__ == "__main__":

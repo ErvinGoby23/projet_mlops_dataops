@@ -5,13 +5,35 @@ Même test que E8 (branche main), appliqué au modèle distillé :
 images rangées par lettre : <dossier>/<LETTRE>/*.jpg (pas de boîtes, la lettre = le nom du dossier).
 Une image est juste si la détection la plus confiante (seuil 0,25) a la bonne lettre.
 Écart B - A, IC 95 % bootstrap (10 000 tirages), test de McNemar, fidélité.
+Résultat : results/d6_<tag>.json (les champs "a" et "b" indiquent les modèles comparés).
 
-Usage :
-  # 1. FP32 vs INT8 du modèle distillé (par défaut)
+Préalable (une fois) : exporter le PROFESSEUR en ONNX FP32 416, seulement pour ce test
+(il n'est jamais quantifié ni déployé) :
+  python -c "from ultralytics import YOLO; from pathlib import Path; p=YOLO('model/teacher_v8s.pt').export(format='onnx', imgsz=416, dynamic=True, simplify=True, device='cpu'); Path(p).replace('exports/teacher_v8s_fp32_416.onnx')"
+
+Commandes lancées — 1er échantillon (datasets_externe/echantillon_50, 1 300 images) :
+  # distillée FP32 vs INT8 MinMax (par défaut)
   python distillation/d6_externe.py --images datasets_externe/echantillon_50 --tag mendeley_50_distill
-  # 2. v1 FP32 (A) vs distillée FP32 (B)
-  python distillation/d6_externe.py --images datasets_externe/echantillon_50 \
-      --a exports/asl_fp32_416.onnx --b exports/distill_fp32_416.onnx --tag mendeley_50_v1_vs_distill
+  # distillée FP32 vs INT8 Percentile
+  python distillation/d6_externe.py --images datasets_externe/echantillon_50 --b exports/distill_int8_416_percentile.onnx --tag mendeley_50_distill_percentile
+  # distillée FP32 vs INT8 Percentile, en 640 et en 320
+  python distillation/d6_externe.py --images datasets_externe/echantillon_50 --imgsz 640 --a exports/distill_fp32_640.onnx --b exports/distill_int8_640_percentile.onnx --tag mendeley_50_distill_640
+  python distillation/d6_externe.py --images datasets_externe/echantillon_50 --imgsz 320 --a exports/distill_fp32_320.onnx --b exports/distill_int8_320_percentile.onnx --tag mendeley_50_distill_320
+  # v1 vs distillée, en FP32 puis en INT8
+  python distillation/d6_externe.py --images datasets_externe/echantillon_50 --a exports/asl_fp32_416.onnx --b exports/distill_fp32_416.onnx --tag mendeley_50_v1_vs_distill
+  python distillation/d6_externe.py --images datasets_externe/echantillon_50 --a exports/asl_int8_static_416.onnx --b exports/distill_int8_416_percentile.onnx --tag mendeley_50_v1int8_vs_distillint8
+
+Commandes lancées — échantillon de CONFIRMATION (datasets_externe/confirmation_50, jamais utilisé pour choisir) :
+  # v1 : FP32 vs INT8 MinMax, FP32 vs INT8 Percentile, MinMax vs Percentile
+  python distillation/d6_externe.py --images datasets_externe/confirmation_50 --a exports/asl_fp32_416.onnx --b exports/asl_int8_static_416_minmax.onnx --tag confirmation_v1_minmax
+  python distillation/d6_externe.py --images datasets_externe/confirmation_50 --a exports/asl_fp32_416.onnx --b exports/asl_int8_static_416.onnx --tag confirmation_v1_percentile
+  python distillation/d6_externe.py --images datasets_externe/confirmation_50 --a exports/asl_int8_static_416_minmax.onnx --b exports/asl_int8_static_416.onnx --tag confirmation_minmax_vs_percentile
+  # distillée : FP32 vs INT8 Percentile
+  python distillation/d6_externe.py --images datasets_externe/confirmation_50 --a exports/distill_fp32_416.onnx --b exports/distill_int8_416_percentile.onnx --tag confirmation_distill_percentile
+  # v1 INT8 vs distillée INT8 (diapo 19 : +6,4 pts)
+  python distillation/d6_externe.py --images datasets_externe/confirmation_50 --a exports/asl_int8_static_416.onnx --b exports/distill_int8_416_percentile.onnx --tag confirmation_v1int8_vs_distillint8
+  # professeur FP32 vs élève FP32 (diapo 19 : 34,8 % contre 37,3 %)
+  python distillation/d6_externe.py --images datasets_externe/confirmation_50 --a exports/teacher_v8s_fp32_416.onnx --b exports/distill_fp32_416.onnx --tag confirmation_prof_vs_eleve
 """
 import argparse
 import sys
