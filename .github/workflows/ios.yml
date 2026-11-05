@@ -1,14 +1,8 @@
-# Construit l'app iPhone (version ONNX) sur un Mac de GitHub Actions (pas besoin de Mac chez toi).
-# 1. Exporte 5 versions CoreML (FP32 640, INT8 640, FP16 416, INT8 416, INT8 320)
-# 2. Les met TOUTES dans l'app (choix + mesure des FPS en stream sur l'iPhone)
-#    + le modèle ONNX INT8 416 (distillée, Percentile) dans app/assets/onnx/
-# 3. Compile l'app Flutter sans signature -> fichier .ipa à installer avec Sideloadly
-#    Identifiant différent (com.ervin.aslOnnx) -> s'installe À CÔTÉ de l'app CoreML
 name: Build iOS (ASL ONNX)
 
 on:
   push:
-    branches: [main]
+    branches: [onnx-iphone]
   workflow_dispatch:
 
 jobs:
@@ -18,30 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ---------- 1. Export + quantization + comparaison ----------
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Vérifier le modèle ONNX
+        run: |
+          test -f app/assets/onnx/asl_int8_416.onnx
+          shasum -a 256 app/assets/onnx/asl_int8_416.onnx
 
-      - name: Installer les outils d'export
-        run: pip install "ultralytics>=8.3" coremltools roboflow
-
-      - name: Export CoreML (5 versions) + évaluation
-        env:
-          ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
-          EXPORT_NMS: "true"
-        run: python scripts/export_coreml.py
-
-      - name: Sauvegarder les modèles et le comparatif
-        uses: actions/upload-artifact@v4
-        with:
-          name: quantization-results
-          path: |
-            exports/benchmark.md
-            exports/benchmark.csv
-            exports/*.mlpackage.zip
-
-      # ---------- 2. Projet iOS Flutter ----------
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -52,11 +27,8 @@ jobs:
         run: |
           flutter create --platforms=ios --org com.ervin --project-name asl_signes .
           rm -rf test
-          # Autorisation caméra (obligatoire sur iOS)
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'La caméra sert à reconnaître les lettres de la langue des signes.'" ios/Runner/Info.plist
-          # Le plugin YOLO demande iOS 16 minimum
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 16.0;/g' ios/Runner.xcodeproj/project.pbxproj
-          # Version ONNX : autre identifiant -> s'installe À CÔTÉ de l'app CoreML
           sed -i '' 's/com\.ervin\.aslSignes/com.ervin.aslOnnx/g' ios/Runner.xcodeproj/project.pbxproj
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'ASL ONNX'" ios/Runner/Info.plist
           flutter pub get
@@ -66,7 +38,6 @@ jobs:
             (cd ios && pod install)
           fi
 
-      # ---------- 3. Compilation + .ipa ----------
       - name: Compiler (sans signature)
         working-directory: app
         run: flutter build ios --release --no-codesign

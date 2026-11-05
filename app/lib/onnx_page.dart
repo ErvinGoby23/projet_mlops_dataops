@@ -8,12 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:onnxruntime/onnxruntime.dart';
 
-/// Détection ASL avec le modèle ONNX INT8 416 (distillée, Percentile),
-/// exécuté par ONNX Runtime sur le CPU de l'iPhone, dans un fil séparé (isolate)
-/// pour ne pas bloquer l'affichage de la caméra.
 const int kSize = 416;
 const String kLettres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const double kSeuil = 0.25; // affichage : même seuil que e7 / d6
+const double kSeuil = 0.25;
 const String kModele = 'assets/onnx/asl_int8_416.onnx';
 
 class Prediction {
@@ -23,47 +20,27 @@ class Prediction {
   const Prediction(this.lettre, this.score, this.ms);
 }
 
-/// Même chose que letterbox() de common.py : sans déformer, bandes grises 114,
-/// RGB, /255, format 1x3x416x416. "rotation" redresse l'image de la caméra.
-Float32List letterbox(Uint8List bytes, int w, int h, int stride, int rotation) {
-  final tourne = rotation == 90 || rotation == 270;
-  final uw = tourne ? h : w; // taille de l'image redressée
-  final uh = tourne ? w : h;
-  final r = min(kSize / uh, kSize / uw);
-  final nw = (uw * r).round(), nh = (uh * r).round();
+Float32List letterbox(Uint8List bytes, int w, int h, int stride) {
+  final r = min(kSize / h, kSize / w);
+  final nw = (w * r).round(), nh = (h * r).round();
   final left = (kSize - nw) ~/ 2, top = (kSize - nh) ~/ 2;
   const plan = kSize * kSize;
 
   final out = Float32List(3 * plan)..fillRange(0, 3 * plan, 114 / 255.0);
   for (var y = 0; y < nh; y++) {
-    final uy = min(uh - 1, (y / r).floor());
+    final sy = min(h - 1, (y / r).floor());
     for (var x = 0; x < nw; x++) {
-      final ux = min(uw - 1, (x / r).floor());
-      int sx, sy;
-      if (rotation == 90) {
-        sx = uy;
-        sy = h - 1 - ux;
-      } else if (rotation == 180) {
-        sx = w - 1 - ux;
-        sy = h - 1 - uy;
-      } else if (rotation == 270) {
-        sx = w - 1 - uy;
-        sy = ux;
-      } else {
-        sx = ux;
-        sy = uy;
-      }
-      final i = sy * stride + sx * 4; // BGRA
+      final sx = min(w - 1, (x / r).floor());
+      final i = sy * stride + sx * 4;
       final o = (top + y) * kSize + (left + x);
-      out[o] = bytes[i + 2] / 255.0; // R
-      out[plan + o] = bytes[i + 1] / 255.0; // G
-      out[2 * plan + o] = bytes[i] / 255.0; // B
+      out[o] = bytes[i + 2] / 255.0;
+      out[plan + o] = bytes[i + 1] / 255.0;
+      out[2 * plan + o] = bytes[i] / 255.0;
     }
   }
   return out;
 }
 
-/// Lance le modèle et garde la détection la plus confiante (comme top1() de e7 / d6).
 Prediction predire(OrtSession session, Float32List data) {
   final input = OrtValueTensor.createTensorWithDataList(data, [1, 3, kSize, kSize]);
   final runOptions = OrtRunOptions();
@@ -72,7 +49,7 @@ Prediction predire(OrtSession session, Float32List data) {
   sw.stop();
   final ms = sw.elapsedMicroseconds / 1000;
 
-  final out = (outputs[0]!.value as List)[0] as List; // [30][3549]
+  final out = (outputs[0]!.value as List)[0] as List;
   var best = 0.0;
   var bestCls = 0;
   for (var c = 0; c < 26; c++) {
@@ -93,7 +70,6 @@ Prediction predire(OrtSession session, Float32List data) {
   return Prediction(kLettres[bestCls], best, ms);
 }
 
-/// Le fil séparé : charge le modèle une fois, puis traite chaque image reçue.
 void _travailleur(List<Object> args) {
   final versUi = args[0] as SendPort;
   final modele = args[1] as Uint8List;
@@ -106,8 +82,7 @@ void _travailleur(List<Object> args) {
       try {
         final m = msg as List<Object>;
         final sw = Stopwatch()..start();
-        final entree = letterbox(m[0] as Uint8List, m[1] as int, m[2] as int,
-            m[3] as int, m[4] as int);
+        final entree = letterbox(m[0] as Uint8List, m[1] as int, m[2] as int, m[3] as int);
         final msPrep = sw.elapsedMicroseconds / 1000;
         final p = predire(session, entree);
         versUi.send(<Object>[p.lettre, p.score, p.ms, msPrep]);
@@ -135,7 +110,6 @@ class _OnnxPageState extends State<OnnxPage> {
   String? _erreur;
 
   bool _occupe = false;
-  int _rotation = 0; // l'image arrive déjà en portrait (480x640) ; ajustable avec le bouton
   String _tailleCamera = '';
 
   String? _lettre;
@@ -143,7 +117,6 @@ class _OnnxPageState extends State<OnnxPage> {
   double _msInference = 0;
   double _msPreparation = 0;
 
-  // Épellation (comme l'app CoreML) : une lettre est validée si elle reste stable assez longtemps
   static const _minConfiance = 0.55;
   static const _dureeTenue = Duration(milliseconds: 900);
   String? _candidat;
@@ -179,7 +152,6 @@ class _OnnxPageState extends State<OnnxPage> {
 
   Future<void> _demarrer() async {
     try {
-      // 1. Le fil séparé qui fait tout le calcul
       final raw = await rootBundle.load(kModele);
       final port = ReceivePort();
       _depuisTravailleur = port;
@@ -187,7 +159,6 @@ class _OnnxPageState extends State<OnnxPage> {
       _isolate = await Isolate.spawn(
           _travailleur, <Object>[port.sendPort, raw.buffer.asUint8List()]);
 
-      // 2. La caméra
       final cams = await availableCameras();
       final dos = cams.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
@@ -208,20 +179,18 @@ class _OnnxPageState extends State<OnnxPage> {
     }
   }
 
-  /// Image caméra : on l'envoie au fil séparé, sauf s'il est encore occupé.
   void _surImage(CameraImage img) {
     final versTravailleur = _versTravailleur;
-    if (_occupe || versTravailleur == null) return; // on saute les images pendant un calcul
+    if (_occupe || versTravailleur == null) return;
     _occupe = true;
     final p = img.planes[0];
     _tailleCamera = '${img.width}x${img.height}';
-    versTravailleur.send(<Object>[p.bytes, img.width, img.height, p.bytesPerRow, _rotation]);
+    versTravailleur.send(<Object>[p.bytes, img.width, img.height, p.bytesPerRow]);
   }
 
-  /// Réponse du fil séparé.
   void _surReponse(dynamic msg) {
     if (msg is SendPort) {
-      _versTravailleur = msg; // le modèle est chargé
+      _versTravailleur = msg;
       return;
     }
     final r = msg as List<Object>;
@@ -239,7 +208,6 @@ class _OnnxPageState extends State<OnnxPage> {
       _msMesure.add(ms);
     }
 
-    // Épellation : la lettre doit rester la même pendant 0,9 s
     final candidat = score >= _minConfiance ? lettre : null;
     final maintenant = DateTime.now();
     if (candidat != _candidat) {
@@ -268,8 +236,6 @@ class _OnnxPageState extends State<OnnxPage> {
       _progression = progression;
     });
   }
-
-  void _tourner() => setState(() => _rotation = (_rotation + 90) % 360);
 
   void _lancerMesure() {
     if (_mesure) return;
@@ -336,8 +302,6 @@ class _OnnxPageState extends State<OnnxPage> {
             Center(child: CameraPreview(cam))
           else
             const Center(child: CircularProgressIndicator()),
-
-          // ---- Haut : lettre + chiffres + boutons ----
           SafeArea(
             child: Align(
               alignment: Alignment.topCenter,
@@ -357,7 +321,7 @@ class _OnnxPageState extends State<OnnxPage> {
                             color: scheme.primary,
                             backgroundColor: Colors.white12,
                           ),
-                          Text(_lettre ?? '–',
+                          Text(_lettre ?? '-',
                               style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
                         ]),
                       ),
@@ -369,19 +333,15 @@ class _OnnxPageState extends State<OnnxPage> {
                             style: const TextStyle(color: Colors.white70)),
                         Text('Préparation : ${_msPreparation.toStringAsFixed(1)} ms',
                             style: const TextStyle(color: Colors.white70)),
-                        Text('${_fps.toStringAsFixed(0)} FPS · caméra $_tailleCamera · rotation $_rotation°',
+                        Text('${_fps.toStringAsFixed(0)} FPS · caméra $_tailleCamera',
                             style: const TextStyle(color: Colors.white70)),
                       ]),
                     ]),
                     const SizedBox(height: 8),
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      OutlinedButton(onPressed: _tourner, child: Text('Rotation $_rotation°')),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _mesure ? null : _lancerMesure,
-                        child: Text(_mesure ? 'Mesure… $_restant s' : 'Mesurer 10 s'),
-                      ),
-                    ]),
+                    FilledButton(
+                      onPressed: _mesure ? null : _lancerMesure,
+                      child: Text(_mesure ? 'Mesure… $_restant s' : 'Mesurer 10 s'),
+                    ),
                     if (_resultatMesure != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
@@ -398,8 +358,6 @@ class _OnnxPageState extends State<OnnxPage> {
               ),
             ),
           ),
-
-          // ---- Bas : mot épelé ----
           SafeArea(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -430,7 +388,7 @@ class _OnnxPageState extends State<OnnxPage> {
                                   ? null
                                   : () => setState(
                                       () => _mot = _mot.substring(0, _mot.length - 1)),
-                              child: const Text('⌫'))),
+                              child: const Text('Retour'))),
                       const SizedBox(width: 8),
                       Expanded(
                           child: FilledButton(
