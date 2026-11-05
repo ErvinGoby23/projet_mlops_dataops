@@ -1,0 +1,37 @@
+{
+  "images": "datasets_externe/confirmation_50",
+  "a": "exports\\asl_fp32_416.onnx",
+  "b": "exports\\distill_int8_416_percentile.onnx",
+  "imgsz": 416,
+  "n": 1300,
+  "exactitude_a": 0.30923076923076925,
+  "exactitude_b": 0.3423076923076923,
+  "ecart_b_moins_a": 0.03307692307692308,
+  "ic95": [
+    0.012307692307692308,
+    0.05384615384615385
+  ],
+  "mcnemar_juste_a_seul": 74,
+  "mcnemar_juste_b_seul": 117,
+  "mcnemar_p": 0.0022874614851792372,
+  "meme_lettre": 0.6192307692307693,
+  "aucune_detection_a": 0.3161538461538462,
+  "perdues_par_b": {
+    "A": 2,
+    "B": 3,
+    "C": 6,
+    "F": 16,
+    "H": 5,
+    "I": 6,
+    "J": 1,
+    "K": 2,
+    "N": 7,
+    "O": 1,
+    "Q": 7,
+    "R": 9,
+    "S": 1,
+    "U": 5,
+    "W": 2,
+    "Y": 1
+  }
+}
