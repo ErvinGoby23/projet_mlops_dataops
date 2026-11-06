@@ -1,18 +1,3 @@
-"""
-D6 — Distillation sur un dataset EXTERNE (jamais vu, autre source que Roboflow).
-
-Même test que E8 (branche main), appliqué au modèle distillé :
-images rangées par lettre : <dossier>/<LETTRE>/*.jpg (pas de boîtes, la lettre = le nom du dossier).
-Une image est juste si la détection la plus confiante (seuil 0,25) a la bonne lettre.
-Écart B - A, IC 95 % bootstrap (10 000 tirages), test de McNemar, fidélité.
-
-Usage :
-  # 1. FP32 vs INT8 du modèle distillé (par défaut)
-  python distillation/d6_externe.py --images datasets_externe/echantillon_50 --tag mendeley_50_distill
-  # 2. v1 FP32 (A) vs distillée FP32 (B)
-  python distillation/d6_externe.py --images datasets_externe/echantillon_50 \
-      --a exports/asl_fp32_416.onnx --b exports/distill_fp32_416.onnx --tag mendeley_50_v1_vs_distill
-"""
 import argparse
 import sys
 from collections import Counter
@@ -48,7 +33,7 @@ def main():
     ma, mb = Path(a.a), Path(a.b)
     for f in (ma, mb):
         if not f.exists():
-            sys.exit(f"❌ {f} introuvable")
+            sys.exit(f"{f} introuvable")
     print(f"A : {ma}\nB : {mb}")
 
     names = YOLO(str(ma), task="detect").names          # {0: 'A', 1: 'B', ...}
@@ -61,7 +46,7 @@ def main():
                 files.append(f)
                 gts.append(idx[d.name.upper()])
     if not files:
-        sys.exit("❌ aucune image trouvée")
+        sys.exit("aucune image trouvée")
     print(f"{len(files)} images, {len(set(gts))} lettres")
 
     pa = top1(ma, files, a.imgsz)

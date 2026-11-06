@@ -1,13 +1,3 @@
-"""
-D9 — Robustesse à la graine : distillation (d2) vs contrôle sans professeur (d3), graines 0, 1, 2.
-
-Même recette que d2 / d3 (départ = v1, config.yaml, pas de miroir) ; seule la graine change.
-Graine 0 = modèles déjà entraînés (best_distill.pt, best_continue.pt).
-
-Étape 1 (venv GPU) : python distillation/d9_graines.py --etape train
-Étape 2 (venv CPU) : python distillation/d9_graines.py --etape eval --images datasets_externe/confirmation_50
-  -> pour chaque modèle : export ONNX 416, INT8 Percentile, exactitude sur les images externes (FP32 et INT8)
-"""
 import argparse
 import shutil
 import sys
@@ -38,7 +28,7 @@ def train():
         for methode in ("distill", "continue"):
             out = chemin(methode, g)
             if out.exists():
-                print(f"ℹ️  {out.name} existe déjà : sauté")
+                print(f"{out.name} existe déjà : sauté")
                 continue
             extra = {"distill_model": str(TEACHER)} if methode == "distill" else {}
             model = YOLO(str(P["model_pt"]))                       # départ = v1, comme d2 / d3
@@ -47,7 +37,7 @@ def train():
                         seed=g, deterministic=True,
                         project=str(P["runs"]), name=f"{methode}_s{g}", exist_ok=True, **extra)
             shutil.copy(Path(model.trainer.save_dir) / "weights" / "best.pt", out)
-            print(f"✅ {out.name}")
+            print(f"{out.name}")
 
 
 def exactitude(model_path, files, gts):

@@ -1,12 +1,3 @@
-"""
-D4 — Quantifier la v1 DISTILLÉE avec la même recette que la v1 (E4), à 416
-
-Question : le gain de la distillation survit-il à la quantization INT8 ?
-Recette identique à la v1 : QDQ statique, MinMax, per-channel, tête FP32, 100 images de calibration (train).
-La v1 n'est PAS modifiée : ses fichiers (model/best.pt, exports/asl_*.onnx) sont seulement lus.
-Nouveaux fichiers : exports/distill_fp32_416.onnx, exports/distill_int8_416.onnx
-À lancer dans le venv CPU (celui des expériences E1 à E6).
-"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -32,7 +23,7 @@ def export_distill(size):
 
 def main():
     if not DISTILL.exists():
-        sys.exit("❌ model/best_distill.pt absent : lance d'abord distillation/d2_eleve.py")
+        sys.exit("model/best_distill.pt absent : lance d'abord distillation/d2_eleve.py")
 
     fp32 = export_distill(IMGSZ)
     int8 = P["exports"] / f"distill_int8_{IMGSZ}.onnx"
@@ -50,7 +41,7 @@ def main():
     res = {"imgsz": IMGSZ}
     for name, path in models.items():
         if not path.exists():
-            print(f"⚠️  {path.name} absent : ignoré")
+            print(f"{path.name} absent : ignoré")
             continue
         print(f"→ {name}")
         tag = name.split()[0]

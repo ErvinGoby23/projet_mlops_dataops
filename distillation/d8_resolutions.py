@@ -29,7 +29,7 @@ def export_distill(size):
 
 def main():
     if not DISTILL.exists():
-        sys.exit(f"❌ {DISTILL} absent")
+        sys.exit(f"{DISTILL} absent")
     calib = calibration_files(CFG["quantization"]["calib_images"])
     data_eval = eval_yaml()
     res = {}

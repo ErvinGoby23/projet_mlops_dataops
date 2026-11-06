@@ -1,17 +1,3 @@
-"""
-E7 — Robustesse de « pas de perte de précision » : FP32 vs INT8, même modèle, même résolution.
-
-1. Précision appariée sur les 216 images jamais vues (valid + test, étiquetées) :
-   chaque image est-elle bien reconnue (bonne lettre ET boîte IoU > 0,5) ?
-   -> écart INT8 - FP32, intervalle de confiance bootstrap 95 %, test de McNemar
-2. Fidélité sur les 1 728 images (train + valid + test), sans étiquettes :
-   l'INT8 prédit-il la même lettre que le FP32 ? (+ chevauchement des boîtes)
-
-Usage :
-  python optimisation/e7_robustesse.py                      # modèles de la config (exports/ ou exports_v8m/)
-  python optimisation/e7_robustesse.py --fp32 A.onnx --int8 B.onnx --tag distill
-  python optimisation/e7_robustesse.py --imgsz 640 --fp32 A.onnx --int8 B.onnx --tag C640
-"""
 import argparse
 import sys
 from pathlib import Path
@@ -70,7 +56,7 @@ def main():
     int8 = Path(a.int8) if a.int8 else P["exports"] / f"asl_int8_static_{a.imgsz}.onnx"
     for f in (fp32, int8):
         if not f.exists():
-            sys.exit(f"❌ {f} introuvable (lance d'abord run_all.py, ou passe --fp32/--int8)")
+            sys.exit(f"{f} introuvable (lance d'abord run_all.py, ou passe --fp32/--int8)")
     print(f"FP32 : {fp32}\nINT8 : {int8}")
 
     # 1. Précision appariée sur les 216 images jamais vues

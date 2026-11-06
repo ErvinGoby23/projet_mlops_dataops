@@ -1,10 +1,3 @@
-"""
-D3 — CONTRÔLE : la v1 continue son entraînement SANS professeur
-
-Question : le gain de d2 vient-il du professeur, ou juste de l'entraînement supplémentaire ?
-Même chose que d2 (départ = v1, même recette), mais SANS distill_model.
-À lancer dans le venv GPU. Si model/best_continue.pt existe déjà, l'entraînement est sauté.
-"""
 import shutil
 import sys
 from pathlib import Path
@@ -32,12 +25,12 @@ def train():
                 project=str(P["runs"]), name=NAME, exist_ok=True)   # PAS de distill_model
     best = Path(model.trainer.save_dir) / "weights" / "best.pt"
     shutil.copy(best, OUT)
-    print(f"✅ Contrôle copié dans {OUT}")
+    print(f"Contrôle copié dans {OUT}")
 
 
 def main():
     if OUT.exists():
-        print(f"ℹ️  {OUT.name} existe déjà : entraînement sauté.")
+        print(f"{OUT.name} existe déjà : entraînement sauté.")
     else:
         train()
 

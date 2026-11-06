@@ -1,11 +1,3 @@
-"""
-D7 — Requantifier la v1 DISTILLÉE avec la calibration Percentile (recette retenue après E8).
-
-Même recette que D4 (QDQ statique, per-channel, tête FP32, 100 images de calibration du train),
-seule la calibration change : Percentile 99,999 au lieu de MinMax.
-Lit exports/distill_fp32_416.onnx (créé par D4) ; écrit exports/distill_int8_416_percentile.onnx.
-D4 et ses fichiers ne sont pas modifiés.
-"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -19,7 +11,7 @@ IMGSZ = 416
 def main():
     fp32 = P["exports"] / f"distill_fp32_{IMGSZ}.onnx"
     if not fp32.exists():
-        sys.exit(f"❌ {fp32} absent : lance d'abord d4_quantif_distill.py")
+        sys.exit(f"{fp32} absent : lance d'abord d4_quantif_distill.py")
     calib = calibration_files(CFG["quantization"]["calib_images"])
     int8 = quantize_static(fp32, P["exports"] / f"distill_int8_{IMGSZ}_percentile.onnx", IMGSZ, calib,
                            method="percentile", extra_options={"CalibPercentile": 99.999})

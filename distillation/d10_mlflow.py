@@ -1,15 +1,3 @@
-"""
-D10 — Enregistre la distillée INT8 416 dans MLflow, sur le même modèle que E5 (optimisation/e5_mlflow.py) :
-même base (config.yaml > mlflow), même expérience, même empreinte du dataset, même registry.
-
-- un run « distillee_int8_416_percentile » : paramètres, métriques des tests (d6, d9, CoreML),
-  fichiers de résultats et graphiques en artefacts ;
-- le modèle ONNX INT8 enregistré comme nouvelle version de `asl-detector`, alias « candidate ».
-  L'alias « production » reste sur la v1 tant que le groupe n'a pas décidé.
-
-Lancer depuis la racine du repo (venv CPU) :  python distillation/d10_mlflow.py
-Voir :  mlflow ui --backend-store-uri sqlite:///mlflow.db   puis http://127.0.0.1:5000
-"""
 import sys
 from pathlib import Path
 
@@ -31,7 +19,7 @@ def main():
     from mlflow.tracking import MlflowClient
 
     if not ONNX_INT8.exists():
-        raise SystemExit(f"❌ {ONNX_INT8} introuvable")
+        raise SystemExit(f"{ONNX_INT8} introuvable")
 
     # même résolution du chemin sqlite que E5
     uri = CFG["mlflow"]["tracking_uri"]
@@ -88,8 +76,8 @@ def main():
         int(m.version) for m in client.search_model_versions(f"name='{REGISTERED_NAME}'"))
     client.set_registered_model_alias(REGISTERED_NAME, ALIAS, str(version))
 
-    print(f"✅ Run {run.info.run_id}")
-    print(f"✅ models:/{REGISTERED_NAME}@{ALIAS} (v{version}) — l'alias « production » n'a pas bougé")
+    print(f"Run {run.info.run_id}")
+    print(f"models:/{REGISTERED_NAME}@{ALIAS} (v{version}) — l'alias « production » n'a pas bougé")
 
 
 if __name__ == "__main__":
