@@ -17,7 +17,8 @@ class Prediction {
   final String lettre;
   final double score;
   final double ms;
-  const Prediction(this.lettre, this.score, this.ms);
+  final List<double> boite; // x1, y1, x2, y2 normalisés (0-1) dans l'image caméra
+  const Prediction(this.lettre, this.score, this.ms, this.boite);
 }
 
 Float32List letterbox(Uint8List bytes, int w, int h, int stride) {
@@ -41,7 +42,7 @@ Float32List letterbox(Uint8List bytes, int w, int h, int stride) {
   return out;
 }
 
-Prediction predire(OrtSession session, Float32List data) {
+Prediction predire(OrtSession session, Float32List data, int w, int h) {
   final input = OrtValueTensor.createTensorWithDataList(data, [1, 3, kSize, kSize]);
   final runOptions = OrtRunOptions();
   final sw = Stopwatch()..start();
@@ -52,6 +53,7 @@ Prediction predire(OrtSession session, Float32List data) {
   final out = (outputs[0]!.value as List)[0] as List;
   var best = 0.0;
   var bestCls = 0;
+  var bestA = 0; // position (ancre) de la meilleure détection
   for (var c = 0; c < 26; c++) {
     final ligne = out[4 + c] as List;
     for (var a = 0; a < ligne.length; a++) {
@@ -59,15 +61,27 @@ Prediction predire(OrtSession session, Float32List data) {
       if (s > best) {
         best = s;
         bestCls = c;
+        bestA = a;
       }
     }
   }
+  // Boîte de la meilleure détection : lignes 0-3 = cx, cy, w, h en pixels de l'image 416 (letterbox)
+  double v(int ligne) => ((out[ligne] as List)[bestA] as num).toDouble();
+  final cx = v(0), cy = v(1), bw = v(2), bh = v(3);
+  // On retire le letterbox (mêmes calculs que dans letterbox()) puis on normalise entre 0 et 1
+  final r = min(kSize / h, kSize / w);
+  final left = (kSize - (w * r).round()) ~/ 2;
+  final top = (kSize - (h * r).round()) ~/ 2;
+  double nx(double x) => (((x - left) / r) / w).clamp(0.0, 1.0).toDouble();
+  double ny(double y) => (((y - top) / r) / h).clamp(0.0, 1.0).toDouble();
+  final boite = <double>[nx(cx - bw / 2), ny(cy - bh / 2), nx(cx + bw / 2), ny(cy + bh / 2)];
+
   input.release();
   runOptions.release();
   for (final o in outputs) {
     o?.release();
   }
-  return Prediction(kLettres[bestCls], best, ms);
+  return Prediction(kLettres[bestCls], best, ms, boite);
 }
 
 void _travailleur(List<Object> args) {
@@ -84,8 +98,8 @@ void _travailleur(List<Object> args) {
         final sw = Stopwatch()..start();
         final entree = letterbox(m[0] as Uint8List, m[1] as int, m[2] as int, m[3] as int);
         final msPrep = sw.elapsedMicroseconds / 1000;
-        final p = predire(session, entree);
-        versUi.send(<Object>[p.lettre, p.score, p.ms, msPrep]);
+        final p = predire(session, entree, m[1] as int, m[2] as int);
+        versUi.send(<Object>[p.lettre, p.score, p.ms, msPrep, p.boite]);
       } catch (e) {
         versUi.send(<Object>['ERR', '$e']);
       }
@@ -116,6 +130,7 @@ class _OnnxPageState extends State<OnnxPage> {
   double _score = 0;
   double _msInference = 0;
   double _msPreparation = 0;
+  List<double>? _boite; // cadre affiché sur la caméra
 
   static const _minConfiance = 0.55;
   static const _dureeTenue = Duration(milliseconds: 900);
@@ -233,6 +248,9 @@ class _OnnxPageState extends State<OnnxPage> {
       _msPreparation = r[3] as double;
       _score = score;
       _lettre = score >= kSeuil ? lettre : null;
+      _boite = score >= kSeuil
+          ? (r[4] as List).map((e) => (e as num).toDouble()).toList()
+          : null;
       _progression = progression;
     });
   }
@@ -299,7 +317,13 @@ class _OnnxPageState extends State<OnnxPage> {
         fit: StackFit.expand,
         children: [
           if (cam != null && cam.value.isInitialized)
-            Center(child: CameraPreview(cam))
+            Center(
+              child: CameraPreview(
+                cam,
+                // Le child de CameraPreview a exactement la taille de l'aperçu
+                child: CustomPaint(painter: BoitePainter(_boite, _lettre, scheme.primary)),
+              ),
+            )
           else
             const Center(child: CircularProgressIndicator()),
           SafeArea(
@@ -404,4 +428,42 @@ class _OnnxPageState extends State<OnnxPage> {
       ),
     );
   }
+}
+/// Dessine le cadre de la détection et la lettre au-dessus de l'aperçu caméra.
+class BoitePainter extends CustomPainter {
+  final List<double>? boite;
+  final String? lettre;
+  final Color couleur;
+  BoitePainter(this.boite, this.lettre, this.couleur);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final b = boite;
+    if (b == null) return;
+    final rect = Rect.fromLTRB(
+        b[0] * size.width, b[1] * size.height, b[2] * size.width, b[3] * size.height);
+    canvas.drawRect(
+        rect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = couleur);
+    if (lettre != null) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: ' $lettre ',
+          style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              backgroundColor: couleur),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(rect.left, max(0.0, rect.top - tp.height)));
+    }
+  }
+
+  @override
+  bool shouldRepaint(BoitePainter old) => old.boite != boite || old.lettre != lettre;
 }
