@@ -1,15 +1,3 @@
-"""
-Point d'entree unique du pipeline de quantization.
-
-Usage :
-    python run_all.py              # Execute toutes les experiences (1 -> 6, puis 5 pour la synthese)
-    python run_all.py --only 3     # Execute uniquement l'experience 3
-    python run_all.py --from 4     # Execute a partir de l'experience 4
-
-Chaque experience enregistre ses resultats dans results/etapeN.json ;
-L'experience 5 (MLflow) regroupe l'ensemble des resultats et genere la synthese ainsi que le choix du modele.
-"""
-
 import argparse
 import os
 import subprocess
