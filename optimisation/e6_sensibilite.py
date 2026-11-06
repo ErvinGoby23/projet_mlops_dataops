@@ -1,13 +1,3 @@
-"""
-Experience 6 — Sensibilite de la quantization
-
-A. Un seul bloc du reseau quantifie a la fois -> identification des blocs sensibles a l'INT8
-B. Taille de la calibration (10 / 50 / 100 / 300 images) -> determination du besoin minimal en donnees
-
-Resultat attendu : 22 blocs sur 23 tolerent l'INT8 ; seule la tete (bloc 22) subit une forte degradation.
-Cela apporte la justification experimentale de la precision mixte (conservation de la tete en FP32).
-"""
-
 import sys
 import time
 from pathlib import Path

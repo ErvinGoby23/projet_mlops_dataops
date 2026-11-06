@@ -1,11 +1,3 @@
-"""
-Expérience 2 — Quantization post-training DYNAMIQUE (quantize_dynamic)
-
-Question : Quantifier les poids à l'avance et les activations à la volée suffit-il ?
-Constat : La taille du modèle est divisée par ~4, mais la vitesse n'est pas garantie 
-sur des couches de convolution sur CPU.
-"""
-
 import sys
 from pathlib import Path
 
@@ -34,11 +26,6 @@ IMGSZ = 640
 
 
 def quantize(src, dst):
-    """
-    Tente de quantifier en int8 signé (QInt8). 
-    Si ONNX Runtime CPU échoue à exécuter ConvInteger avec QInt8, 
-    le script bascule automatiquement sur uint8 (QUInt8).
-    """
     for wtype in (QuantType.QInt8, QuantType.QUInt8):
         # Applique la quantification dynamique sur le fichier source ONNX
         quantize_dynamic(str(src), str(dst), weight_type=wtype)

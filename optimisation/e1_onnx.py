@@ -1,10 +1,3 @@
-"""
-Experience 1 — Export ONNX + PyTorch vs ONNX Runtime (CPU)
-
-Question : La conversion en ONNX change-t-elle le modele ? Le moteur ONNX est-il plus rapide ?
-Role : Cree la REFERENCE non quantifiee (ONNX FP32) qui isole ensuite l'effet de la quantization.
-"""
-
 import sys
 from pathlib import Path
 
@@ -46,12 +39,10 @@ def main():
 
     # Fonctions wrapper d'inference pour la comparaison de vitesse et de precision
     def run_torch(x):
-        """Execute l'inference via le moteur PyTorch."""
         with torch.inference_mode():
             return net(torch.from_numpy(x))[0].numpy()
 
     def run_onnx(x):
-        """Execute l'inference via le moteur ONNX Runtime."""
         return sess.run(None, {name: x})[0]
 
     # 2. Evaluation de l'ecart de prediction direct (score delta) sur un lot d'images

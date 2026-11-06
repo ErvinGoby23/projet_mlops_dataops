@@ -1,19 +1,3 @@
-"""
-Experience 5 — MLflow : tracer toutes les versions + graphiques + regle de decision
-
-Principe MLOps : "ML system source code = training code + data" -> versionnement conjoint
-du DATASET (empreinte SHA256), des MODELES (.onnx/.pt) et des METRIQUES.
-
-Deroulement :
-  1. Lecture des resultats des experiences 1 a 4
-  2. Creation d'un run MLflow par version (parametres, metriques, artefacts)
-  3. Application de la regle de decision automatique (definie dans config.yaml)
-  4. Enregistrement du modele selectionne dans le Model Registry (alias "production")
-  5. Generation des graphiques comparatifs pour le rapport final
-
-Interface MLflow : mlflow ui --backend-store-uri sqlite:///mlflow.db -> http://127.0.0.1:5000
-"""
-
 import hashlib
 import json
 import sys
@@ -40,9 +24,8 @@ EXPERIMENT = CFG["mlflow"]["experiment"]
 REGISTERED_NAME = CFG["mlflow"]["registered_model"]
 
 
-# ---------------------------------------------------------------------------
+
 # FONCTIONS UTILITAIRES & COLLECTE DES DONNEES
-# ---------------------------------------------------------------------------
 
 def load(n):
     """Charge le fichier JSON de resultats d'une etape donnee s'il existe."""
@@ -305,9 +288,7 @@ def charts(v, choice, key):
     plt.close("all")
 
 
-# ---------------------------------------------------------------------------
 # MAIN & CONSTITUTION DU RAPPORT TEXTE
-# ---------------------------------------------------------------------------
 
 def main():
     v = collect()

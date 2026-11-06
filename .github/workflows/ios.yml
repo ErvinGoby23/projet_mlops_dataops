@@ -1,7 +1,3 @@
-# Construit l'app iPhone sur un Mac de GitHub Actions (pas besoin de Mac chez toi).
-# 1. Exporte 5 versions CoreML (FP32 640, INT8 640, FP16 416, INT8 416, INT8 320)
-# 2. Les met TOUTES dans l'app (choix + mesure des FPS en stream sur l'iPhone)
-# 3. Compile l'app Flutter sans signature -> fichier .ipa à installer avec Sideloadly
 name: Build iOS (ASL)
 
 on:
@@ -16,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ---------- 1. Export + quantization + comparaison ----------
+      #  1. Export + quantization + comparaison 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -39,7 +35,7 @@ jobs:
             exports/benchmark.csv
             exports/*.mlpackage.zip
 
-      # ---------- 2. Projet iOS Flutter ----------
+      #  2. Projet iOS Flutter 
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -61,7 +57,7 @@ jobs:
             (cd ios && pod install)
           fi
 
-      # ---------- 3. Compilation + .ipa ----------
+      #  3. Compilation + .ipa 
       - name: Compiler (sans signature)
         working-directory: app
         run: flutter build ios --release --no-codesign

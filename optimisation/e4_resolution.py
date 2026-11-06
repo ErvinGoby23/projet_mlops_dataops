@@ -1,10 +1,3 @@
-"""
-Experience 4 — 2e optimisation : resolution d'entree (640 / 416 / 320) x FP32 / INT8
-
-Question : Reduire le nombre de pixels accelere-t-il l'inference, et a quel cout en precision ?
-Remarque : Les images du dataset etant nativement en 416, agrandir en 640 n'ajoute pas d'information.
-"""
-
 import sys
 from pathlib import Path
 
