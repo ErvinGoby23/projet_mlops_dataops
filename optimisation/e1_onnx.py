@@ -1,9 +1,4 @@
-"""
-Expérience 1 — Export ONNX + PyTorch vs ONNX Runtime (CPU)
 
-Question : la conversion en ONNX change-t-elle le modèle ? Le moteur ONNX est-il plus rapide ?
-Rôle : crée la RÉFÉRENCE non quantifiée (ONNX FP32) qui isole ensuite l'effet de la quantization.
-"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
