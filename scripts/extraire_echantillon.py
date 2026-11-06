@@ -1,27 +1,149 @@
-# Extrait un échantillon aléatoire (graine fixe) d'images d'un type, pour les 26 lettres.
-# Usage : python scripts/extraire_echantillon.py <Root.zip> <dossier_sortie> <n_par_lettre> [type]
-import sys, zipfile, random, collections, pathlib
+import csv
+import os
+import shutil
+from pathlib import Path
 
-zip_path, sortie, n = sys.argv[1], pathlib.Path(sys.argv[2]), int(sys.argv[3])
-type_ = sys.argv[4] if len(sys.argv) > 4 else "Type_01_(Raw_Gesture)"
-LETTRES = [chr(c) for c in range(ord("A"), ord("Z") + 1)]   # DEL et SPACE exclus
+from ultralytics import YOLO
 
-zf = zipfile.ZipFile(zip_path)
-noms = [x for x in zf.namelist() if not x.endswith("/")]
-print("Types :", sorted({x.split("/")[1] for x in noms}))
+PT = Path("model/best.pt")
+OUT = Path("exports")
+APP_MODELS = Path("app/assets/models")
+DATA = Path("datasets/asl/data.yaml")
+NMS = os.environ.get("EXPORT_NMS", "true").lower() == "true"
 
-par_lettre = collections.defaultdict(list)
-for x in noms:
-    parts = x.split("/")
-    if parts[1] == type_ and parts[2] in LETTRES:
-        par_lettre[parts[2]].append(x)
+VARIANTS = {
+    "fp32_640": (640, {}),
+    "int8_640": (640, {"int8": True}),
+    "fp16_416": (416, {"half": True}),
+    "int8_416": (416, {"int8": True}),
+    "int8_320": (320, {"int8": True}),
+}
 
-random.seed(0)
-total = 0
-for l in LETTRES:
-    choix = random.sample(sorted(par_lettre[l]), n)
-    (sortie / l).mkdir(parents=True, exist_ok=True)
-    for x in choix:
-        (sortie / l / x.split("/")[-1]).write_bytes(zf.read(x))
-    total += len(choix)
-print(f"{total} images extraites dans {sortie}")
+
+# Donne la taille d'un fichier ou d'un dossier en Mo
+def size_mb(path: Path) -> float:
+    if path.is_file():
+        return path.stat().st_size / 1e6
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file()) / 1e6
+
+
+# Met le modèle .mlpackage dans un fichier .zip pour l'application
+def zip_mlpackage(src: Path, inner_name: str, dest_zip: Path):
+    tmp = OUT / "_zip"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    shutil.copytree(src, tmp / f"{inner_name}.mlpackage")
+    dest_zip.parent.mkdir(parents=True, exist_ok=True)
+    base = str(dest_zip).removesuffix(".zip")
+    shutil.make_archive(base, "zip", root_dir=tmp, base_dir=f"{inner_name}.mlpackage")
+    shutil.rmtree(tmp)
+
+
+# Trouve le dataset sur l'ordinateur ou le télécharge depuis Roboflow
+def get_dataset():
+    if DATA.exists():
+        return str(DATA.resolve())
+    key = os.environ.get("ROBOFLOW_API_KEY")
+    if not key:
+        print("Attention: Pas de ROBOFLOW_API_KEY declaree. Export sans mesure de precision.")
+        return None
+    from roboflow import Roboflow
+    rf = Roboflow(api_key=key)
+    project = rf.workspace("david-lee-d0rhs").project("american-sign-language-letters")
+    project.version(1).download("yolov8", location="datasets/asl")
+    return str(DATA.resolve())
+
+
+# Mesure la précision et la vitesse du modèle sur les images de test
+def evaluate(model_path: str, data, imgsz: int):
+    if not data:
+        return None, None, None
+    try:
+        m = YOLO(model_path, task="detect").val(
+            data=data, split="test", imgsz=imgsz, batch=1, plots=False, verbose=False
+        )
+        return m.box.map50, m.box.map, m.speed["inference"]
+    except Exception as e:
+        print(f"Attention: Evaluation impossible pour {model_path} ({e})")
+        return None, None, None
+
+
+# Exporte une version du modèle en CoreML, la zippe et renvoie ses résultats
+def export_variant(name: str, imgsz: int, kwargs: dict, data):
+    print(f"\n=== Export CoreML {name} ===")
+    exported = Path(YOLO(str(PT)).export(format="coreml", imgsz=imgsz, nms=NMS, **kwargs))
+    dest = OUT / f"asl_{name}.mlpackage"
+    shutil.rmtree(dest, ignore_errors=True)
+    shutil.move(str(exported), dest)
+    zip_mlpackage(dest, f"asl_{name}", APP_MODELS / f"asl_{name}.mlpackage.zip")
+
+    map50, map5095, ms = evaluate(str(dest), data, imgsz)
+    return {
+        "version": f"CoreML {name}",
+        "resolution": imgsz,
+        "taille_mo": round(size_mb(dest), 2),
+        "mAP50": map50,
+        "mAP50-95": map5095,
+        "inference_ms_mac": ms,
+    }
+
+
+# Affiche un nombre avec des décimales, ou un tiret s'il n'y a pas de valeur
+def fmt(value, decimals=3):
+    return "—" if value is None else f"{value:.{decimals}f}"
+
+
+# Enregistre les résultats dans un fichier CSV
+def save_csv(rows):
+    with open(OUT / "benchmark.csv", "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=rows[0].keys())
+        w.writeheader()
+        w.writerows(rows)
+
+
+# Crée le tableau des résultats au format Markdown
+def build_report(rows):
+    md = [
+        "## CoreML — versions embarquees dans l'app", "",
+        "| Version | Resolution | Taille (Mo) | mAP50 | mAP50-95 | Inference Mac (ms) |",
+        "|---|---|---|---|---|---|",
+    ]
+    for r in rows:
+        md.append(
+            f"| {r['version']} | {r['resolution']} | {r['taille_mo']:.2f} | {fmt(r['mAP50'])} | "
+            f"{fmt(r['mAP50-95'])} | {fmt(r['inference_ms_mac'], 1)} |"
+        )
+    md += ["", "_Les FPS en stream se mesurent dans l'app sur l'iPhone (bouton « Mesurer 10 s »)._"]
+    return "\n".join(md)
+
+
+# Ajoute le rapport au résumé de GitHub Actions s'il existe
+def publish_summary(report):
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write(report + "\n")
+
+
+# Lance tout : export des modèles, mesures, puis création des rapports
+def main():
+    if not PT.exists():
+        raise SystemExit("Erreur: model/best.pt introuvable")
+
+    OUT.mkdir(exist_ok=True)
+    for old in APP_MODELS.glob("*.zip"):
+        old.unlink()
+
+    data = get_dataset()
+    rows = [export_variant(name, imgsz, kwargs, data)
+            for name, (imgsz, kwargs) in VARIANTS.items()]
+
+    save_csv(rows)
+    report = build_report(rows)
+    (OUT / "benchmark.md").write_text(report, encoding="utf-8")
+    print("\n" + report)
+    publish_summary(report)
+
+
+if __name__ == "__main__":
+    main()

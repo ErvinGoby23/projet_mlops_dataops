@@ -1,15 +1,3 @@
-"""
-Export CoreML de plusieurs versions + evaluation (execute par GitHub Actions sur Mac).
-
-Versions embarquees dans l'app :
-  fp32_640 | int8_640 | fp16_416 | int8_416 | int8_320
-
-Note : En CoreML, "int8" correspond a la quantification des POIDS sur 8 bits 
-(les calculs s'effectuent ensuite en FP16 sur le Neural Engine). Il n'y a pas 
-de quantification des activations, ce qui evite le probleme de la tete de 
-detection observe avec ONNX Runtime.
-"""
-
 import csv
 import os
 import shutil
