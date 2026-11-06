@@ -1,17 +1,3 @@
-"""
-E7 — Robustesse de « pas de perte de précision » : FP32 vs INT8, même modèle, même résolution.
-
-1. Précision appariée sur les 216 images jamais vues (valid + test, étiquetées) :
-   chaque image est-elle bien reconnue (bonne lettre ET boîte IoU > 0,5) ?
-   -> écart INT8 - FP32, intervalle de confiance bootstrap 95 %, test de McNemar
-2. Fidélité sur les 1 728 images (train + valid + test), sans étiquettes :
-   l'INT8 prédit-il la même lettre que le FP32 ? (+ chevauchement des boîtes)
-
-Usage :
-  python optimisation/e7_robustesse.py                      # modèles de la config (exports/ ou exports_v8m/)
-  python optimisation/e7_robustesse.py --fp32 A.onnx --int8 B.onnx --tag distill
-  python optimisation/e7_robustesse.py --imgsz 640 --fp32 A.onnx --int8 B.onnx --tag C640
-"""
 import argparse
 import sys
 from pathlib import Path
@@ -25,8 +11,6 @@ from optimisation.common import P, banner, images_of, save_json  # noqa: E402
 
 
 def top1(model_path, files, imgsz):
-    """Détection la plus confiante par image : (classe, boîte normalisée) ou (None, None).
-    Une image à la fois, pour ne pas saturer la mémoire (en 640 px, 1 512 images d'un coup ≈ 10 Go)."""
     m = YOLO(str(model_path), task="detect")
     out = []
     for f in files:
@@ -40,7 +24,6 @@ def top1(model_path, files, imgsz):
 
 
 def gt_of(img):
-    """Vraie lettre + vraie boîte (fichier labels/<nom>.txt au format YOLO)."""
     lab = img.parent.parent / "labels" / f"{img.stem}.txt"
     c, cx, cy, w, h = map(float, lab.read_text().split()[:5])
     return int(c), [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2]
@@ -70,10 +53,9 @@ def main():
     int8 = Path(a.int8) if a.int8 else P["exports"] / f"asl_int8_static_{a.imgsz}.onnx"
     for f in (fp32, int8):
         if not f.exists():
-            sys.exit(f"❌ {f} introuvable (lance d'abord run_all.py, ou passe --fp32/--int8)")
+            sys.exit(f"{f} introuvable (lance d'abord run_all.py, ou passe --fp32/--int8)")
     print(f"FP32 : {fp32}\nINT8 : {int8}")
 
-    # 1. Précision appariée sur les 216 images jamais vues
     eval_imgs = images_of("valid") + images_of("test")
     gts = [gt_of(f) for f in eval_imgs]
     pred_fp32_eval = top1(fp32, eval_imgs, a.imgsz)
@@ -84,11 +66,10 @@ def main():
     rng = np.random.default_rng(0)
     boots = [d[rng.integers(0, len(d), len(d))].mean() for _ in range(10_000)]
     lo, hi = np.percentile(boots, [2.5, 97.5])
-    b = int(((ok_fp32 == 1) & (ok_int8 == 0)).sum())   # juste en FP32 seulement
-    c = int(((ok_fp32 == 0) & (ok_int8 == 1)).sum())   # juste en INT8 seulement
+    b = int(((ok_fp32 == 1) & (ok_int8 == 0)).sum())
+    c = int(((ok_fp32 == 0) & (ok_int8 == 1)).sum())
     p_mcnemar = binomtest(min(b, c), b + c, 0.5).pvalue if b + c else 1.0
 
-    # 2. Fidélité : train (déjà vues) + les 216 jamais vues (prédictions déjà calculées)
     train_imgs = images_of("train")
     pa = top1(fp32, train_imgs, a.imgsz) + pred_fp32_eval
     pb = top1(int8, train_imgs, a.imgsz) + pred_int8_eval

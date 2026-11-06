@@ -1,16 +1,8 @@
-"""
-Entraînement du modèle (données -> modèle), lu depuis config.yaml.
-
-    $env:ROBOFLOW_API_KEY="ta_cle"     (PowerShell, seulement si le dataset n'est pas déjà là)
-    python training/train.py
-
-Télécharge le dataset si besoin, fine-tune YOLOv8n sur GPU (ou CPU), évalue sur le jeu de test
-et copie le meilleur modèle dans model/best.pt (point de départ de la quantization).
-"""
 import os
 import shutil
 import sys
 from pathlib import Path
+from roboflow import Roboflow
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torch  # noqa: E402
@@ -24,8 +16,8 @@ def ensure_dataset():
         return
     key = os.environ.get("ROBOFLOW_API_KEY")
     if not key:
-        sys.exit('❌ Dataset absent : définis $env:ROBOFLOW_API_KEY="ta_cle" puis relance.')
-    from roboflow import Roboflow
+        sys.exit('Dataset absent : définis $env:ROBOFLOW_API_KEY="ta_cle" puis relance.')
+
     d = CFG["dataset"]
     Roboflow(api_key=key).workspace(d["roboflow_workspace"]).project(d["roboflow_project"]) \
         .version(d["roboflow_version"]).download("yolov8", location=str(P["data"].parent))
@@ -48,7 +40,7 @@ def main():
 
     P["model_pt"].parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(best, P["model_pt"])
-    print(f"✅ Modèle copié dans {P['model_pt']}")
+    print(f"Modèle copié dans {P['model_pt']}")
 
 
 if __name__ == "__main__":      # obligatoire sous Windows (multiprocessing)

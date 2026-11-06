@@ -1,13 +1,3 @@
-"""
-Point d'entrée unique du pipeline de quantization.
-
-    python run_all.py              # toutes les expériences (1 -> 6, puis 5 pour la synthèse)
-    python run_all.py --only 3     # une seule expérience
-    python run_all.py --from 4     # à partir de l'expérience 4
-
-Chaque expérience écrit ses résultats dans results/etapeN.json ;
-l'expérience 5 (MLflow) relit tout et produit la synthèse + le choix du modèle.
-"""
 import argparse
 import os
 import subprocess
@@ -33,7 +23,7 @@ def main():
     args = ap.parse_args()
 
     if not (ROOT / "model" / "best.pt").exists():
-        sys.exit("❌ model/best.pt manquant : lance d'abord  python training/train.py")
+        sys.exit("model/best.pt manquant : lance d'abord  python training/train.py")
 
     order = [args.only] if args.only else [n for n in STEPS if n >= args.start or n == 5]
     t_all = time.perf_counter()
@@ -45,9 +35,9 @@ def main():
         script = ROOT / "optimisation" / f"{module}.py"
         r = subprocess.run([sys.executable, str(script)], cwd=ROOT, env=env)
         if r.returncode != 0:
-            sys.exit(f"❌ Expérience {n} en échec (code {r.returncode})")
-        print(f"✅ Expérience {n} terminée en {time.perf_counter() - t0:.0f} s")
-    print(f"\n🏁 Pipeline terminé en {(time.perf_counter() - t_all) / 60:.1f} min — résultats dans results/")
+            sys.exit(f" Expérience {n} en échec (code {r.returncode})")
+        print(f"Expérience {n} terminée en {time.perf_counter() - t0:.0f} s")
+    print(f"\n Pipeline terminé en {(time.perf_counter() - t_all) / 60:.1f} min — résultats dans results/")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,3 @@
-"""
-D3 — CONTRÔLE : la v1 continue son entraînement SANS professeur
-
-Question : le gain de d2 vient-il du professeur, ou juste de l'entraînement supplémentaire ?
-Même chose que d2 (départ = v1, même recette), mais SANS distill_model.
-À lancer dans le venv GPU. Si model/best_continue.pt existe déjà, l'entraînement est sauté.
-"""
 import shutil
 import sys
 from pathlib import Path
@@ -26,18 +19,18 @@ def train():
     t = CFG["training"]
     device = 0 if torch.cuda.is_available() else "cpu"
     print(f"Contrôle (sans professeur) sur : {torch.cuda.get_device_name(0) if device == 0 else 'CPU'}")
-    model = YOLO(str(P["model_pt"]))                  # même départ que d2 : la v1
+    model = YOLO(str(P["model_pt"]))
     model.train(data=str(P["data"]), epochs=t["epochs"], imgsz=t["imgsz"], batch=t["batch"],
                 patience=t["patience"], fliplr=0.0, device=device, workers=2,
-                project=str(P["runs"]), name=NAME, exist_ok=True)   # PAS de distill_model
+                project=str(P["runs"]), name=NAME, exist_ok=True)
     best = Path(model.trainer.save_dir) / "weights" / "best.pt"
     shutil.copy(best, OUT)
-    print(f"✅ Contrôle copié dans {OUT}")
+    print(f"Contrôle copié dans {OUT}")
 
 
 def main():
     if OUT.exists():
-        print(f"ℹ️  {OUT.name} existe déjà : entraînement sauté.")
+        print(f"{OUT.name} existe déjà : entraînement sauté.")
     else:
         train()
 
@@ -66,5 +59,5 @@ def main():
     print("\n".join(lines))
 
 
-if __name__ == "__main__":      # obligatoire sous Windows (multiprocessing)
+if __name__ == "__main__":
     main()

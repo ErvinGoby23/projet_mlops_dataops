@@ -1,13 +1,3 @@
-"""
-D2 — DISTILLATION : la v1 continue son apprentissage avec l'aide du professeur
-
-Élève      : la v1 (model/best.pt, YOLOv8n déjà fine-tuné)
-Professeur : model/teacher_v8s.pt (YOLOv8s, entraîné dans d1)
-Question : en imitant aussi le professeur, la v1 devient-elle meilleure ?
-Même taille, même vitesse qu'avant : seul le score peut changer.
-Même recette que la v1 (config.yaml, pas de miroir) + distill_model. À lancer dans le venv GPU.
-Si model/best_distill.pt existe déjà, l'entraînement est sauté.
-"""
 import shutil
 import sys
 from pathlib import Path
@@ -27,25 +17,25 @@ IMGSZ = 640
 
 def train():
     if not TEACHER.exists():
-        sys.exit("❌ Professeur absent : lance d'abord distillation/d1_professeur.py")
+        sys.exit("Professeur absent : lance d'abord distillation/d1_professeur.py")
     t = CFG["training"]
     device = 0 if torch.cuda.is_available() else "cpu"
     print(f"Distillation sur : {torch.cuda.get_device_name(0) if device == 0 else 'CPU'}")
     print(f"Élève : {P['model_pt'].name} (v1) | Professeur : {TEACHER.name}")
-    model = YOLO(str(P["model_pt"]))                  # on part de la v1 déjà entraînée
+    model = YOLO(str(P["model_pt"]))
     model.train(data=str(P["data"]), epochs=t["epochs"], imgsz=t["imgsz"], batch=t["batch"],
                 patience=t["patience"], fliplr=0.0, device=device, workers=2,
                 project=str(P["runs"]), name=NAME, exist_ok=True,
-                distill_model=str(TEACHER))           # <- active la distillation
+                distill_model=str(TEACHER))
     best = Path(model.trainer.save_dir) / "weights" / "best.pt"
     OUT.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(best, OUT)
-    print(f"✅ Élève distillé copié dans {OUT}")
+    print(f"Élève distillé copié dans {OUT}")
 
 
 def main():
     if OUT.exists():
-        print(f"ℹ️  {OUT.name} existe déjà : entraînement sauté.")
+        print(f"{OUT.name} existe déjà : entraînement sauté.")
     else:
         train()
 
@@ -73,11 +63,11 @@ def main():
                  f"{d['mAP50-95_test'] - v1['mAP50-95_test']:>+8.3f}"
                  f"{d['mAP50_216img'] - v1['mAP50_216img']:>+9.3f}"
                  f"{d['mAP50-95_216img'] - v1['mAP50-95_216img']:>+8.3f}")
-    lines.append("✅ La distillation améliore la v1 (mAP50-95, 216 images)."
+    lines.append("La distillation améliore la v1 (mAP50-95, 216 images)."
                  if res["distillee_meilleure"]
-                 else "⚠️  La distillation n'améliore pas la v1 (mAP50-95, 216 images).")
+                 else "La distillation n'améliore pas la v1 (mAP50-95, 216 images).")
     print("\n".join(lines))
 
 
-if __name__ == "__main__":      # obligatoire sous Windows (multiprocessing)
+if __name__ == "__main__":
     main()

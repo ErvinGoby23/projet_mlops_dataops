@@ -1,9 +1,3 @@
-"""
-Expérience 4 — 2e optimisation : résolution d'entrée (640 / 416 / 320) × FP32 / INT8
-
-Question : réduire le nombre de pixels accélère-t-il, et à quel coût en précision ?
-(Les images du dataset sont nativement en 416 : agrandir en 640 n'ajoute aucune information.)
-"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

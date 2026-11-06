@@ -1,16 +1,3 @@
-"""
-D1 — Entraîner le PROFESSEUR (YOLOv8s, ~11 M paramètres) sur le dataset ASL
-
-Question : un modèle plus gros fait-il mieux que la v1 (YOLOv8n, ~3 M) ?
-Il doit dépasser la v1, sinon il n'a rien à apprendre à l'élève.
-Même recette que la v1 (config.yaml, pas de miroir). À lancer dans le venv GPU.
-Si model/teacher_v8s.pt existe déjà, l'entraînement est sauté (comme export_onnx).
-
-Évaluation sur 2 jeux :
-  - test (72 images) : même jeu que la v1 (0,924 / 0,765)
-  - valid + test (216 images) : plus robuste, comme E3 / E4 / E6
-    (⚠️ valid a servi à choisir la meilleure epoch -> légèrement optimiste ; sert à COMPARER)
-"""
 import shutil
 import sys
 from pathlib import Path
@@ -30,7 +17,7 @@ IMGSZ = 640
 
 def train():
     if not P["data"].exists():
-        sys.exit("❌ Dataset absent : lance d'abord training/train.py (il le télécharge).")
+        sys.exit("Dataset absent : lance d'abord training/train.py (il le télécharge).")
     t = CFG["training"]
     device = 0 if torch.cuda.is_available() else "cpu"
     print(f"Entraînement du professeur sur : {torch.cuda.get_device_name(0) if device == 0 else 'CPU'}")
@@ -41,12 +28,12 @@ def train():
     best = Path(model.trainer.save_dir) / "weights" / "best.pt"
     OUT.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(best, OUT)
-    print(f"✅ Professeur copié dans {OUT}")
+    print(f"Professeur copié dans {OUT}")
 
 
 def main():
     if OUT.exists():
-        print(f"ℹ️  {OUT.name} existe déjà : entraînement sauté.")
+        print(f"{OUT.name} existe déjà : entraînement sauté.")
     else:
         train()
 
@@ -74,11 +61,11 @@ def main():
                  f"{prof['mAP50-95_test'] - v1['mAP50-95_test']:>+8.3f}"
                  f"{prof['mAP50_216img'] - v1['mAP50_216img']:>+9.3f}"
                  f"{prof['mAP50-95_216img'] - v1['mAP50-95_216img']:>+8.3f}")
-    lines.append("✅ Le professeur est meilleur (mAP50-95, 216 images) : on peut distiller."
+    lines.append("Le professeur est meilleur (mAP50-95, 216 images) : on peut distiller."
                  if res["professeur_meilleur"]
-                 else "⚠️  Le professeur n'est pas meilleur que la v1 (mAP50-95, 216 images).")
+                 else "Le professeur n'est pas meilleur que la v1 (mAP50-95, 216 images).")
     print("\n".join(lines))
 
 
-if __name__ == "__main__":      # obligatoire sous Windows (multiprocessing)
+if __name__ == "__main__":
     main()

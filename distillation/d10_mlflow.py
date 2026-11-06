@@ -1,15 +1,3 @@
-"""
-D10 — Enregistre la distillée INT8 416 dans MLflow, sur le même modèle que E5 (optimisation/e5_mlflow.py) :
-même base (config.yaml > mlflow), même expérience, même empreinte du dataset, même registry.
-
-- un run « distillee_int8_416_percentile » : paramètres, métriques des tests (d6, d9, CoreML),
-  fichiers de résultats et graphiques en artefacts ;
-- le modèle ONNX INT8 enregistré comme nouvelle version de `asl-detector`, alias « production »
-  (la v1 reste dans le registry : on peut revenir en arrière en déplaçant l'alias).
-
-Lancer depuis la racine du repo (venv CPU) :  python distillation/d10_mlflow.py
-Voir :  mlflow ui --backend-store-uri sqlite:///mlflow.db   puis http://127.0.0.1:5000
-"""
 import sys
 from pathlib import Path
 
@@ -31,9 +19,8 @@ def main():
     from mlflow.tracking import MlflowClient
 
     if not ONNX_INT8.exists():
-        raise SystemExit(f"❌ {ONNX_INT8} introuvable")
+        raise SystemExit(f"{ONNX_INT8} introuvable")
 
-    # même résolution du chemin sqlite que E5
     uri = CFG["mlflow"]["tracking_uri"]
     if uri.startswith("sqlite:///") and not Path(uri[10:]).is_absolute():
         uri = "sqlite:///" + str((ROOT / uri[10:]).as_posix())
@@ -50,16 +37,13 @@ def main():
     }
     metrics = {
         "taille_mo": ONNX_INT8.stat().st_size / 1e6,
-        # images externes, échantillon de confirmation (1 300 images, bonne lettre)
         "externe_fp32": 0.373,
         "externe_int8": 0.342,
         "externe_gain_vs_v1_int8": 0.064,
         "externe_vs_v8m_int8_p": 0.77,
-        # graines 0/1/2 (d9, INT8)
         "graines_int8_moyenne": 0.317,
         "graines_int8_ecart_type": 0.018,
         "graines_gain_vs_controle": 0.072,
-        # CoreML (CI, test 72 images)
         "coreml_int8_416_mAP50": 0.874,
         "coreml_int8_416_mAP50-95": 0.709,
         "coreml_int8_416_taille_mo": 3.20,
@@ -88,8 +72,8 @@ def main():
         int(m.version) for m in client.search_model_versions(f"name='{REGISTERED_NAME}'"))
     client.set_registered_model_alias(REGISTERED_NAME, ALIAS, str(version))
 
-    print(f"✅ Run {run.info.run_id}")
-    print(f"✅ models:/{REGISTERED_NAME}@{ALIAS} (v{version}) — l'alias « production » pointe maintenant sur la distillée")
+    print(f"Run {run.info.run_id}")
+    print(f"models:/{REGISTERED_NAME}@{ALIAS} (v{version}) — l'alias « production » pointe maintenant sur la distillée")
 
 
 if __name__ == "__main__":

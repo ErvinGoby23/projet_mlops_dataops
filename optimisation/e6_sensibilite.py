@@ -1,12 +1,3 @@
-"""
-Expérience 6 — Sensibilité de la quantization
-
-  A. Un seul bloc du réseau quantifié à la fois -> quels blocs supportent mal l'INT8 ?
-  B. Taille de la calibration (10 / 50 / 100 / 300 images) -> combien d'images faut-il ?
-
-Résultat obtenu : 22 blocs sur 23 tolèrent l'INT8 ; seule la tête (bloc 22) s'effondre
--> justification mesurée de la précision mixte (tête en FP32).
-"""
 import sys
 import time
 from pathlib import Path

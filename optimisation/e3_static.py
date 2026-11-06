@@ -1,12 +1,3 @@
-"""
-Expérience 3 — Quantization post-training STATIQUE (calibrée), 3 variantes à 640
-
-  A. MinMax,     tout quantifié          -> version naïve
-  B. MinMax,     tête de détection FP32  -> précision mixte (recette retenue)
-  C. Percentile, tête de détection FP32  -> les outliers comptent-ils encore ?
-
-Question : calculer les échelles des activations à l'avance permet-il d'accélérer sans perdre ?
-"""
 import sys
 import time
 from pathlib import Path

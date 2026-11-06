@@ -1,9 +1,3 @@
-"""
-Expérience 2 — Quantization post-training DYNAMIQUE (quantize_dynamic, TP 7)
-
-Question : quantifier les poids à l'avance et les activations à la volée suffit-il ?
-Résultat attendu (cours) : taille ÷~4, mais vitesse pas garantie sur des convolutions.
-"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

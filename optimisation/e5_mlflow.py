@@ -1,16 +1,3 @@
-"""
-Expérience 5 — MLflow : tracer toutes les versions + graphiques + règle de décision
-
-Cours : "ML system source code = training code + data" -> on versionne ensemble
-le DATASET (empreinte), les MODÈLES et les MÉTRIQUES.
-  1. Lit les résultats des expériences 1 à 4 (+ 6)
-  2. Un run MLflow par version (paramètres, métriques, fichier du modèle)
-  3. Applique la règle de décision fixée à l'avance (config.yaml > decision)
-  4. Enregistre le modèle choisi dans le Model Registry (alias "production")
-  5. Génère les graphiques du rapport
-
-Interface : mlflow ui --backend-store-uri sqlite:///mlflow.db  -> http://127.0.0.1:5000
-"""
 import hashlib
 import json
 import sys
@@ -168,9 +155,9 @@ def log_mlflow(v, choice, fp, counts):
                     version = getattr(info, "registered_model_version", None) or max(
                         int(m.version) for m in client.search_model_versions(f"name='{REGISTERED_NAME}'"))
                     client.set_registered_model_alias(REGISTERED_NAME, "production", str(version))
-                    print(f"✅ {name} enregistré : models:/{REGISTERED_NAME}@production (v{version})")
+                    print(f"{name} enregistré : models:/{REGISTERED_NAME}@production (v{version})")
                 except Exception as e:
-                    print(f"⚠️  Enregistrement dans le registry impossible : {e}")
+                    print(f"Enregistrement dans le registry impossible : {e}")
                     mlflow.log_artifact(str(f), artifact_path="model")
             elif f.exists():
                 mlflow.log_artifact(str(f), artifact_path="model")
@@ -258,7 +245,7 @@ def main():
         r = v[n]
         m216 = f"{r[key]:.3f}" if r.get(key) is not None else "—"
         perte = f"{r['perte']:+.3f}" if "perte" in r else "—"
-        regle = "" if "ok" not in r else ("✅" if r["ok"] else "❌")
+        regle = "" if "ok" not in r else ("" if r["ok"] else "❌")
         if n == choice:
             regle += "  ← CHOISI"
         lines.append(f"{n:26}{r['taille']:>8.2f}{r['map50_test']:>8.3f}{m216:>11}"
