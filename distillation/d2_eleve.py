@@ -65,7 +65,7 @@ def main():
                  f"{d['mAP50-95_216img'] - v1['mAP50-95_216img']:>+8.3f}")
     lines.append("La distillation améliore la v1 (mAP50-95, 216 images)."
                  if res["distillee_meilleure"]
-                 else "⚠️  La distillation n'améliore pas la v1 (mAP50-95, 216 images).")
+                 else " La distillation n'améliore pas la v1 (mAP50-95, 216 images).")
     print("\n".join(lines))
 
 

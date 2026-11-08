@@ -1,0 +1,32 @@
+{
+  "python -c " :"from optimisation.common import *; src=P['exports']/'asl_fp32_640.onnx'; dst=P['exports']/'test_A_percentile_640.onnx'; quantize_static(src, dst, 640, calibration_files(30), method='percentile', protect_head=False); print('mAP50 A Percentile 640 :', evaluate(dst, 640, tag='A_percentile_640')[0])",
+  "titre": "Vérifications complémentaires (7 novembre 2026)",
+  "modele": "v1 YOLOv8n, ONNX, CPU (AMD Ryzen 7 250)",
+  "tete_entierement_quantifiee": {
+    "question": "Tout quantifier, décodage de la tête compris, donne-t-il une mAP de 0 quelle que soit la calibration ?",
+    "fonction": "optimisation.common.quantize_static(protect_head=False)",
+    "evaluation": "mAP50, jeu de test (72 images)",
+    "resultats": [
+      {"calibration": "MinMax", "resolution_px": 640, "images_calibration": 100, "mAP50": 0.0, "source": "E3, variante A"},
+      {"calibration": "Percentile 99,999", "resolution_px": 640, "images_calibration": 30, "mAP50": 0.0, "source": "test du 7 novembre"},
+      {"calibration": "Percentile 99,999", "resolution_px": 416, "images_calibration": 30, "mAP50": 0.622, "source": "test du 7 novembre"}
+    ],
+    "reference_tete_fp32": "environ 0,92 à 0,94 de mAP50",
+    "conclusion": "À 640 px, tout quantifier donne 0 en MinMax comme en Percentile : le problème vient du mélange pixels / probabilités dans le décodage de la tête, pas de la méthode de calibration. À 416 px, la perte est moins totale (0,622) mais reste très forte. Garder le décodage de la tête en FP32 est nécessaire."
+  },
+  "quantization_dynamique_meme_execution": {
+    "question": "La quantization dynamique est-elle vraiment plus lente que le FP32 ?",
+    "conditions": "640 px, batch 1, les deux modèles mesurés l'un après l'autre (optimisation.common.bench_onnx)",
+    "fp32_ms": 35.6,
+    "dynamique_ms": 43.9,
+    "conclusion": "Confirmé : la dynamique reste plus lente que le FP32 (environ +23 %). Écart plus faible que dans E2 (61 contre 37 ms), car les latences CPU varient d'une exécution à l'autre."
+  },
+  "fp32_640_et_320_revérifiés": {
+    "question": "L'accuracy FP32 identique à 640 et 320 px (83,3 %) est-elle une erreur ?",
+    "script": "e7_robustesse.py",
+    "accuracy_fp32_640": 0.833,
+    "accuracy_fp32_320": 0.833,
+    "conclusion": "Résultat reproduit : 180 images justes sur 216 dans les deux cas, coïncidence (modèles et évaluations distincts)."
+  },
+  "note_latence": "Sur PC, la latence CPU varie fortement d'une exécution à l'autre (charge, température, alimentation). Seules les mesures faites dans une même exécution sont comparées entre elles ; la référence finale est la mesure sur iPhone."
+}
