@@ -1,9 +1,3 @@
-# =====================================================================
-#  Configuration unique du projet ASL embarqué
-#  Tous les scripts lisent ce fichier : on change un réglage ici, pas dans le code.
-#  Les chemins sont relatifs à la racine du repo.
-# =====================================================================
-
 paths:
   model_pt: model/best.pt              # modèle entraîné (point de départ)
   data: datasets/asl/data.yaml         # dataset Roboflow (non versionné dans git)
