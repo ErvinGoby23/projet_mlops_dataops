@@ -1,17 +1,3 @@
-"""
-Entrainement du modele (donnees -> modele), lu depuis config.yaml.
-
-Usage :
-    $env:ROBOFLOW_API_KEY="ta_cle"     (PowerShell, uniquement si le dataset n'est pas encore present)
-    python training/train.py
-
-Fonctionnement :
-  - Telecharge le dataset via Roboflow si absent localement
-  - Fine-tune le modele YOLOv8 de base sur GPU (ou CPU si CUDA n'est pas disponible)
-  - Evalue la precision du meilleur checkpoint sur le jeu de test
-  - Copie le fichier de poids produit vers model/best.pt (point de depart pour la quantification)
-"""
-
 import os
 import shutil
 import sys
