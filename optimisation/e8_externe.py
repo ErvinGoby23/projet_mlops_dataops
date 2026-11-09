@@ -1,14 +1,3 @@
-"""
-E8 — Robustesse FP32 vs INT8 sur un dataset EXTERNE (jamais vu, autre source que Roboflow).
-
-Arborescence attendue : <dossier>/<LETTRE>/*.jpg (pas de boites, le nom du dossier definit la classe).
-Une image est consideree juste si la detection la plus confiante (seuil 0,25) correspond a la bonne lettre.
-Metriques calculees : Ecart INT8 - FP32, IC 95% bootstrap (10 000 tirages), test de McNemar, fidelite.
-
-Usage :
-  python optimisation/e8_externe.py --images datasets_externe/essai --tag essai
-"""
-
 import argparse
 import sys
 from collections import Counter
