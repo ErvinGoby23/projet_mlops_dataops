@@ -1,11 +1,3 @@
-"""
-D8 — Distillée en 640 / 416 / 320 : FP32 et INT8 (Percentile), comme E4 pour la v1.
-
-Exporte le modèle distillé en ONNX à chaque résolution (réutilise les fichiers existants),
-quantifie en INT8 statique Percentile (tête FP32, 100 images de calibration du train),
-puis mesure taille, mAP50 (test 72 et 216 images) et vitesse.
-Fichiers : exports/distill_fp32_<res>.onnx, exports/distill_int8_<res>_percentile.onnx
-"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

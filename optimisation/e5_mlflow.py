@@ -25,11 +25,6 @@ TRACKING_URI = CFG["mlflow"]["tracking_uri"]
 EXPERIMENT = CFG["mlflow"]["experiment"]
 REGISTERED_NAME = CFG["mlflow"]["registered_model"]
 
-
-# ---------------------------------------------------------------------------
-# FONCTIONS UTILITAIRES & COLLECTE DES DONNÉES
-# ---------------------------------------------------------------------------
-
 def load(n):
     """Charge le fichier JSON de resultats d'une etape donnee s'il existe."""
     p = RESULTS / f"etape{n}.json"
@@ -118,10 +113,6 @@ def dataset_fingerprint():
             h.update(str(f.stat().st_size).encode())
     return h.hexdigest()[:16], counts
 
-
-# ---------------------------------------------------------------------------
-# SELECTION ET TRAÇABILITÉ MLFLOW
-# ---------------------------------------------------------------------------
 
 def decide(v):
     """Applique la regle de decision : modele INT8 le plus rapide avec perte <= seuil tolere."""
@@ -235,10 +226,6 @@ def log_mlflow(v, choice, fp, counts):
         mlflow.log_artifact(str(ROOT / "config.yaml"))
 
 
-# ---------------------------------------------------------------------------
-# GÉNÉRATION DES GRAPHIQUES
-# ---------------------------------------------------------------------------
-
 def charts(v, choice, key):
     """Genere les visuels comparatifs (Vitesse vs Precision, Taille, Degradation par lettre)."""
     CHARTS.mkdir(parents=True, exist_ok=True)
@@ -289,11 +276,6 @@ def charts(v, choice, key):
         fig.savefig(CHARTS / "ecart_par_lettre.png", dpi=150)
         
     plt.close("all")
-
-
-# ---------------------------------------------------------------------------
-# MAIN & CONSTITUTION DU RAPPORT TEXTE
-# ---------------------------------------------------------------------------
 
 def main():
     v = collect()
